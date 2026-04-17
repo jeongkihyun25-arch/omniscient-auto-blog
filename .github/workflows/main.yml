@@ -1,21 +1,27 @@
-name: Blogger Auto Post
+name: Blogger Auto Post Bot
 
 on:
   repository_dispatch:
     types: [run-blog-bot]
+  workflow_dispatch: # 수동 실행 버튼 활성화
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4 # 최신 버전 v4
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5 # 최신 버전 v5
         with:
           python-version: '3.9'
+
       - name: Install dependencies
-        run: pip install requests beautifulsoup4 google-api-python-client google-auth
-      - name: Run script
+        run: |
+          pip install requests beautifulsoup4 google-api-python-client google-auth google-auth-oauthlib lxml
+
+      - name: Run Blog Bot
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BLOG_ID: ${{ secrets.BLOG_ID }}
