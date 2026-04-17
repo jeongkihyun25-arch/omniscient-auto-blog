@@ -12,38 +12,39 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 BLOG_ID = os.getenv("BLOG_ID")
 TOKEN_JSON = os.getenv("GOOGLE_TOKEN_JSON")
 
-# 릴레이 우선순위 (위에서부터 차례대로 시도합니다)
+# 릴레이 우선순위 (경로를 정확히 'models/...'로 수정했습니다)
 MODEL_RELAY = [
-    "gemini-3-flash", 
-    "gemini-2.0-flash", 
-    "gemini-1.5-pro", 
-    "gemini-1.5-flash"
+    "models/gemini-2.0-flash-exp", # 최신 실험형 (응답률 높음)
+    "models/gemini-1.5-flash", 
+    "models/gemini-1.5-pro",
+    "models/gemini-1.0-pro" # 최후의 보루
 ]
 
 def call_gemini_relay(prompt, max_tokens=8192):
-    """성공할 때까지 모델을 바꿔가며 호출하는 릴레이 함수"""
     for model_name in MODEL_RELAY:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={API_KEY}"
+        # v1beta 대신 안정적인 v1 사용 시도
+        url = f"https://generativelanguage.googleapis.com/v1/{model_name}:generateContent?key={API_KEY}"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.8, "maxOutputTokens": max_tokens}
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": max_tokens}
         }
         try:
-            print(f"📡 {model_name} 모델로 시도 중...")
-            res = requests.post(url, json=payload, timeout=120).json()
+            print(f"📡 {model_name} 호출 시도 중...")
+            res = requests.post(url, json=payload, timeout=120)
+            res_json = res.json()
             
-            # 답변이 정상적으로 들어있는지 확인
-            if 'candidates' in res and res['candidates'][0]['content']['parts'][0]['text']:
-                print(f"✅ {model_name} 호출 성공!")
-                return res['candidates'][0]['content']['parts'][0]['text'].strip()
+            if 'candidates' in res_json:
+                print(f"✅ {model_name} 성공!")
+                return res_json['candidates'][0]['content']['parts'][0]['text'].strip()
             else:
-                reason = res.get('error', {}).get('message', '응답 내용 없음(Safety Filter 등)')
-                print(f"⚠️ {model_name} 실패 사유: {reason}")
-                continue # 다음 모델로 패스
+                # 에러 상세 로그 확인용
+                msg = res_json.get('error', {}).get('message', '알 수 없는 오류')
+                print(f"⚠️ {model_name} 실패: {msg}")
+                continue 
         except Exception as e:
-            print(f"⚠️ {model_name} 네트워크 에러: {e}")
+            print(f"⚠️ {model_name} 연결 에러: {e}")
             continue
-    return None # 모든 모델이 실패했을 경우
+    return None
 
 def post_to_blogger(title, content, label, slug):
     try:
@@ -56,15 +57,15 @@ def post_to_blogger(title, content, label, slug):
         service.posts().insert(blogId=BLOG_ID, body=body, isDraft=False).execute()
         return True
     except Exception as e:
-        print(f"❌ 블로그 게시 에러: {e}")
+        print(f"❌ 블로그 게시 실패: {e}")
         return False
 
 if __name__ == "__main__":
     now = datetime.now()
-    print(f"🚀 {now.strftime('%Y-%m-%d')} 자동화 엔진 가동 (릴레이 모드)")
+    print(f"🚀 {now.strftime('%Y-%m-%d')} 릴레이 엔진 최종 가동")
 
-    # 1. 주제 선정 (성공할 때까지 릴레이)
-    pick_prompt = f"{now.strftime('%Y-%m-%d')} 기준 애드센스 고수익 주제 선정. [주제: 제목 / 라벨: 라벨명 / 슬러그: 영문] 형식으로만 답해줘."
+    # 1. 주제 선정
+    pick_prompt = "오늘 날짜 기준 애드센스 고수익 포스팅 주제 1개를 선정해줘. [주제: 제목 / 라벨: 라벨명 / 슬러그: 영문] 형식 엄수."
     strategy = call_gemini_relay(pick_prompt, 1000)
     
     if strategy:
@@ -73,27 +74,21 @@ if __name__ == "__main__":
             target_label = re.search(r'라벨:\s*(.*?)(?=/|\n|$)', strategy).group(1).strip()
             target_slug = re.search(r'슬러그:\s*(.*)', strategy).group(1).strip()
         except:
-            target_title = "오늘의 핵심 경제 지표 요약"; target_label = "경제"; target_slug = "daily-finance"
+            target_title = "재테크 핵심 가이드"; target_label = "재테크"; target_slug = "finance-guide"
 
-        # 2. 본문 생성 (섹션별 릴레이 시도)
+        # 2. 본문 생성 (개인정보 언급 절대 금지)
         full_html = ""
-        sections = [
-            ("도입", "🌸 독자 혜택 위주 서론 (3,500자)"),
-            ("본론", "데이터 및 표를 활용한 심층 분석 (4,000자)"),
-            ("결론", "공식 사이트 외부 링크 6개 포함 마무리 (3,000자)")
-        ]
+        sections = [("본문", "🌸 혜택 중심 서론, 데이터 분석, 외부 링크 6개 포함 10,000자 이상")]
         
         for name, goal in sections:
-            print(f"✍️ {name} 섹션 작성 시작...")
-            write_prompt = f"주제: {target_title}\n목표: {goal}\n규칙: HTML 사용, 필자 개인정보(거주지, 차량, 나이 등) 절대 언급 금지."
+            print(f"✍️ {name} 작성 중...")
+            write_prompt = f"주제: {target_title}\n목표: {goal}\n규칙: HTML 사용, 필자 개인신상(양양, 차량, 가족 등) 언급 금지."
             content = call_gemini_relay(write_prompt, 8000)
-            if content:
-                full_html += content + "\n\n"
-            time.sleep(2)
+            if content: full_html += content
 
-        # 3. 최종 게시
-        if len(full_html) > 1000:
+        # 3. 게시
+        if len(full_html) > 500:
             if post_to_blogger(target_title, full_html, target_label, target_slug):
-                print(f"✨ 게시 성공: {target_title}")
+                print(f"✨ 드디어 게시 성공: {target_title}")
     else:
-        print("❌ 모든 모델이 응답에 실패했습니다. API 키나 쿼터를 확인해주세요.")
+        print("❌ 모든 모델의 쿼터가 소진되었습니다. 1시간 뒤에 다시 시도해주세요.")
