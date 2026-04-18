@@ -1,153 +1,107 @@
 import os
-import pickle
 import requests
 import time
-import random
+import json
 import re
 from datetime import datetime
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 
-# ==================== 설정 ====================
-API_KEY = os.getenv("GEMINI_API_KEY")          # Gemini API 키
-BLOG_ID = os.getenv("BLOG_ID")                 # 당신의 Blog ID (6254424106586242042)
+# ==================== [1] 설정 및 기존 API 로직 (유지) ====================
+API_KEY = os.getenv("GEMINI_API_KEY")
+BLOG_ID = "6254424106586242042" # 기현님 블로그 ID 고정
+COOKIES_JSON = os.getenv("BLOGGER_COOKIES")
 
-# ==================== Gemini 함수 ====================
-MODEL_PRIORITY = [
-    "gemini-2.5-flash-lite",
-    "gemini-flash-latest",
-    "gemini-2.0-flash-001",
-    "gemini-2.5-flash"
-]
+# 기현님이 검증하신 릴레이 로직
+MODEL_RELAY = ["models/gemini-2.0-flash", "models/gemini-1.5-flash", "models/gemini-1.5-pro"]
 
-def get_best_model():
-    print("🔍 Gemini 모델 탐색 중...")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={API_KEY}"
-    try:
-        res = requests.get(url, timeout=15).json()
-        available = [m['name'].replace('models/', '') for m in res.get('models', [])
-                     if 'generateContent' in m.get('supportedGenerationMethods', [])]
-        for p in MODEL_PRIORITY:
-            for m in available:
-                if p in m:
-                    print(f"🎯 선택 모델: {m}")
-                    return m
-        return available[0] if available else None
-    except:
-        return "gemini-2.5-flash-lite"
-
-
-def call_gemini(prompt, max_tokens=8000):
-    model_id = get_best_model()
-    if not model_id:
-        print("❌ 모델을 찾을 수 없습니다.")
-        return None
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={API_KEY}"
-    
-    for attempt in range(7):
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.75, "maxOutputTokens": max_tokens, "topP": 0.95}
-        }
+def call_gemini_relay(prompt, max_tokens=8192):
+    for model_name in MODEL_RELAY:
+        url = f"https://generativelanguage.googleapis.com/v1beta/{model_name}:generateContent?key={API_KEY}"
+        payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"maxOutputTokens": max_tokens}}
         try:
-            res = requests.post(url, json=payload, timeout=90)
-            if res.status_code == 200:
-                return res.json()['candidates'][0]['content']['parts'][0]['text'].strip()
-            elif res.status_code == 429:
-                wait = (2 ** attempt) * 6 + random.uniform(2, 6)
-                print(f"⚠️ 429 → {wait:.1f}초 대기...")
-                time.sleep(wait)
-        except Exception as e:
-            print(f"❌ Gemini 요청 오류: {e}")
-        time.sleep(3)
+            res = requests.post(url, json=payload, timeout=60).json()
+            if 'candidates' in res:
+                return res['candidates'][0]['content']['parts'][0]['text'].strip()
+        except: continue
     return None
 
+# ==================== [2] 셀레니움 게시 함수 (쿠키 활용) ====================
 
-# ==================== Blogger 게시 함수 (token.pickle 사용) ====================
-def post_to_blogger(title, content, label, slug):
+def post_to_blogger_selenium(title, content):
+    options = Options()
+    options.add_argument("--headless") # 서버용
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    
     try:
-        # token.pickle 불러오기
-        with open('token.pickle', 'rb') as f:
-            creds = pickle.load(f)
+        # 1. 도메인 접속 및 쿠키 주입
+        driver.get("https://www.blogger.com")
+        time.sleep(2)
+        cookies = json.loads(COOKIES_JSON)
+        for cookie in cookies:
+            # 셀레니움 쿠키 형식에 맞춰 필요 없는 항목 제거
+            if 'expirationDate' in cookie: cookie['expiry'] = int(cookie.pop('expirationDate'))
+            if 'id' in cookie: cookie.pop('id')
+            driver.add_cookie(cookie)
         
-        # Access Token 자동 갱신
-        if creds.expired and creds.refresh_token:
-            print("🔄 Access Token 갱신 중...")
-            creds.refresh(Request())
+        # 2. 새 글 쓰기 페이지로 직접 이동
+        driver.get(f"https://www.blogger.com/blog/post/edit/new/{BLOG_ID}")
+        wait = WebDriverWait(driver, 20)
         
-        service = build('blogger', 'v3', credentials=creds)
+        # 3. 제목 입력
+        title_area = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[aria-label='제목']")))
+        title_area.send_keys(title)
+        print(f"✅ 제목 입력 완료: {title}")
+
+        # 4. HTML 편집 모드로 전환 (매우 중요)
+        # 에디터 하단의 연필 모양 아이콘 클릭 후 'HTML 보기' 선택 로직
+        mode_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[aria-label='작성 모드']")))
+        mode_button.click()
+        html_view = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'HTML 보기')]")))
+        html_view.click()
+        time.sleep(2)
+
+        # 5. 본문 입력 (HTML 코드를 직접 주입)
+        content_area = driver.find_element(By.CSS_SELECTOR, "textarea.editable")
+        driver.execute_script("arguments[0].value = arguments[1];", content_area, content)
+        print("✅ 본문 1만 자 주입 완료")
+
+        # 6. 게시 버튼 클릭
+        publish_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), '게시')]")))
+        publish_btn.click()
+        confirm_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '확인')]")))
+        confirm_btn.click()
         
-        body = {
-            "title": title,
-            "content": content,
-            "labels": [label],
-            "blog": {"id": BLOG_ID}
-        }
-        
-        service.posts().insert(blogId=BLOG_ID, body=body, isDraft=False).execute()
-        print(f"✅ Blogger 게시 성공! 제목: {title}")
+        print("✨ 블로그 게시 최종 성공!")
         return True
     except Exception as e:
-        print(f"❌ Blogger 게시 실패: {e}")
-        print("→ token.pickle을 삭제하고 get_blogger_refresh_token.py를 다시 실행해보세요.")
+        print(f"❌ 셀레니움 오류: {e}")
         return False
+    finally:
+        driver.quit()
 
-
-# ==================== 메인 ====================
+# ==================== [3] 실행부 ====================
 if __name__ == "__main__":
     now = datetime.now()
-    print(f"🚀 {now.strftime('%Y-%m-%d')} 기현님 자동화 시스템 가동\n")
+    # 1. 주제 및 본문 생성 (개인정보 언급 금지)
+    pick_prompt = "구글 애드센스 고수익 주제 선정. [주제: 제목 / 라벨: 라벨명]"
+    strategy = call_gemini_relay(pick_prompt)
     
-    # 1. 주제 선정
-    pick_prompt = """
-현재 2026년 4월 기준으로 여행 실용 정보 블로그에 적합하면서 
-수익성(CPC)도 괜찮은 실용적인 주제 하나를 추천해줘.
-
-형식:
-주제: [주제명]
-라벨: [라벨명]
-슬러그: [영문-slug]
-"""
-    strategy = call_gemini(pick_prompt, 800)
-    
-    if not strategy:
-        print("❌ 주제 선정 실패")
-        exit()
-
-    try:
-        target_title = re.search(r'주제:\s*(.*?)(?=\n|라벨:|$)', strategy, re.DOTALL).group(1).strip()
-        target_label = re.search(r'라벨:\s*(.*?)(?=\n|슬러그:|$)', strategy, re.DOTALL).group(1).strip()
-        target_slug = re.search(r'슬러그:\s*(.*)', strategy, re.DOTALL).group(1).strip()
-    except:
-        target_title = "2026 해외여행 수하물 규정 완벽 정리"
-        target_label = "여행 교통 팁"
-        target_slug = "2026-baggage-guide"
-
-    print(f"🎯 선정 주제: {target_title}")
-    print(f"🏷️ 라벨: {target_label}")
-    print(f"🔗 슬러그: {target_slug}")
-
-    # 2. 본문 생성
-    print("\n✍️ 본문 생성 중...")
-    write_prompt = f"""
-주제: {target_title}
-
-규칙:
-- HTML 형식으로 작성 (h2, h3, table, ul, li 적극 사용)
-- 6000자 이상의 상세하고 실용적인 내용
-- 개인 정보 절대 언급 금지
-- 공식 링크(인천공항, 외교부 해외안전여행, 일본관광청 등) 6개 이상 자연스럽게 포함
-"""
-    full_html = call_gemini(write_prompt, 10000)
-
-    if full_html and len(full_html) > 2000:
-        print(f"✅ 본문 생성 완료 ({len(full_html):,}자)")
+    if strategy:
+        target_title = re.search(r'주제:\s*(.*?)(?=\n|라벨:|$)', strategy).group(1).strip()
+        print(f"🎯 주제: {target_title}")
         
-        # 3. Blogger 게시
-        if post_to_blogger(target_title, full_html, target_label, target_slug):
-            print(f"\n✨ 성공! {now.strftime('%Y-%m-%d')} 포스팅이 게시되었습니다.")
-        else:
-            print("\n❌ 게시 실패 → token.pickle을 삭제하고 다시 발급받아보세요.")
-    else:
-        print("❌ 본문 생성 실패")
+        write_prompt = f"주제: {target_title}\n규칙: HTML 사용, 1만 자 이상, 필자 개인정보(양양, 차량, 나이) 절대 언급 금지."
+        full_html = call_gemini_relay(write_prompt)
+        
+        if full_html:
+            post_to_blogger_selenium(target_title, full_html)
