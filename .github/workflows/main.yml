@@ -1,8 +1,8 @@
-name: Blogger Auto Posting
+name: Blogger Auto Post
 
 on:
   schedule:
-    - cron: '0 2 * * *'   # 매일 새벽 2시 (한국시간)
+    - cron: '0 3 * * *'   # 매일 새벽 3시
   workflow_dispatch:
 
 jobs:
@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
