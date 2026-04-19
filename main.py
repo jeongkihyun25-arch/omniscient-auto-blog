@@ -137,14 +137,14 @@ def run_automation():
             print("❌ 원고 생성 실패")
             return
         
-        # 🌟 [추가] 깃허브 시크릿에서 토큰 복구 로직
+        # 🌟 깃허브 시크릿에서 토큰 복구 로직
         token_base64 = os.environ.get("BLOGGER_TOKEN_PKL")
         if token_base64:
             with open('token.json', 'wb') as f:
                 f.write(base64.b64decode(token_base64))
             print("✅ 시크릿으로부터 token.json 복구 완료")
         
-        # 카드 및 애드센스 삽입 (기존 유지)
+        # 카드 및 애드센스 삽입
         card_tag = create_summary_card_tag(data.get('summary'), data['title'])
         ads_tag = '<div style="margin:25px 0;"><script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2303846706279700" crossorigin="anonymous"></script><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-2303846706279700" data-ad-slot="1632085406" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
         
@@ -158,7 +158,21 @@ def run_automation():
             .intro {{ font-weight: bold; border-left: 5px solid #3498db; padding-left: 15px; margin-bottom: 20px; }}
         </style><div class="entry-content">{content}</div>"""
 
-        # 인증 및 서비스 빌드 (기존 유지)
+        # 🌟 라벨 번호 안전하게 처리하기 (에러 방지 핵심!)
+        raw_indices = data.get('label_indices', [0])
+        safe_labels = []
+        for i in raw_indices:
+            try:
+                # 숫자가 아닌게 들어오거나 범위를 벗어나면 '생활 정보 꿀팁' 등 기본값으로 보정
+                idx = int(i) % len(LABEL_OPTIONS)
+                safe_labels.append(LABEL_OPTIONS[idx])
+            except (ValueError, TypeError, IndexError):
+                safe_labels.append(LABEL_OPTIONS[0]) # 에러 시 첫 번째 라벨 선택
+        
+        # 중복 라벨 제거
+        safe_labels = list(set(safe_labels))
+
+        # 인증 및 서비스 빌드
         with open('token.json', 'rb') as t:
             creds = pickle.load(t)
             if creds and creds.expired and creds.refresh_token:
@@ -171,13 +185,10 @@ def run_automation():
         service.posts().insert(blogId=BLOG_ID, body={
             "title": data['title'], 
             "content": final_html,
-            "labels": [LABEL_OPTIONS[i] for i in data.get('label_indices', [0])]
+            "labels": safe_labels # 🌟 안전해진 라벨 리스트 사용!
         }, isDraft=False).execute()
         
         print(f"✨ 최종 성공: {data['title']}")
 
     except Exception as e: 
-        print(f"❌ 에러: {e}")
-
-if __name__ == "__main__": 
-    run_automation()
+        print(f"❌ 에러 발생: {e}")
