@@ -139,33 +139,39 @@ def generate_master_content():
         return json.loads(response.text)
     except: return None
 
-# ==================== [6] 업로드 및 디자인 반영 ====================
+# ==================== [6] 실행 및 블로거 업로드 (에러 방지 및 구조 개선) ====================
 def run_automation():
     print("🚀 [2/5] 프로세스 시작...")
     try:
+        # 🌟 깃허브 시크릿에서 토큰 복구
         token_base64 = os.environ.get("BLOGGER_TOKEN_PKL")
         if token_base64:
-            with open('token.json', 'wb') as f: f.write(base64.b64decode(token_base64))
-            print("✅ [3/5] 토큰 복구 완료")
+            with open('token.json', 'wb') as f:
+                f.write(base64.b64decode(token_base64))
+            print("✅ [3/5] 인증 토큰 복구 완료")
 
         data = generate_master_content()
-        if not data: return
+        if not data: 
+            print("❌ 원고 생성 실패")
+            return
         
-        # 디자인 요소 준비
+        # 1. 요약 카드 및 애드센스 태그 준비
         card_tag = create_summary_card_tag(data.get('summary', []), data['title'])
-        ads_tag = '<div style="margin:35px 0;"><script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2303846706279700" crossorigin="anonymous"></script><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-2303846706279700" data-ad-slot="1632085406" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
+        ads_tag = '<div style="margin:30px 0;"><script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2303846706279700" crossorigin="anonymous"></script><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-2303846706279700" data-ad-slot="1632085406" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
         
         content = data['content']
-        # 🌟 구조 재배치: 서론 -> 목차 -> 요약카드 -> 애드센스 -> 본문
         insertion = f"{card_tag}{ads_tag}"
+
+        # 2. 🌟 HTML 구조 강제 재배치 (서론 -> 목차 -> 카드/광고 -> 본문)
+        # 제미나이가 만든 목차(nav) 태그 바로 뒤에 카드와 광고를 넣습니다.
         if "</nav>" in content:
             content = content.replace("</nav>", f"</nav>{insertion}")
         else:
+            # 목차가 없다면 본문 가장 앞에 삽입
             content = insertion + content
 
+        # 3. 스타일링 적용
         final_html = f"""
-        <meta name="description" content="{data['meta_desc']}">
-        <meta name="keywords" content="{data['meta_keys']}">
         <style>
             .entry-content {{ font-size: 18px; line-height: 2.0; color: #333; font-family: 'Malgun Gothic', sans-serif; }}
             .entry-content h2 {{ font-size: 28px; color: #2c3e50; border-left: 10px solid #3498db; padding: 10px 15px; margin: 45px 0 25px; background: #f9f9f9; }}
@@ -179,29 +185,45 @@ def run_automation():
             .entry-content nav ul {{ list-style: none; padding-left: 0; }}
             .entry-content nav li {{ margin-bottom: 10px; }}
             .entry-content nav a {{ color: #2c3e50; text-decoration: none; font-weight: bold; }}
+            b {{ color: #e74c3c; }}
         </style>
         <div class="entry-content">{content}</div>
         """
 
-        # 라벨 및 인증 처리
-        raw_idx = data.get('label_indices', [0])[0]
-        final_label = [LABEL_OPTIONS[int(raw_idx) % len(LABEL_OPTIONS)]]
+        # 4. 🌟 라벨 인덱스 에러 방어 로직 (문제의 int() dict 에러 해결)
+        raw_indices = data.get('label_indices', [0])
+        if not isinstance(raw_indices, list): raw_indices = [raw_indices]
+        
+        final_labels = []
+        for item in raw_indices:
+            try:
+                # 딕셔너리일 경우 값만 추출, 아닐 경우 바로 int 변환
+                val = item.get('index', 0) if isinstance(item, dict) else item
+                idx = int(val) % len(LABEL_OPTIONS)
+                final_labels.append(LABEL_OPTIONS[idx])
+            except:
+                continue
+        
+        # 라벨이 비어있으면 기본값
+        if not final_labels: final_labels = [LABEL_OPTIONS[0]]
 
+        # 5. 인증 및 업로드
         with open('token.json', 'rb') as t:
             creds = pickle.load(t)
-            if creds.expired: creds.refresh(Request())
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
         
         service = build('blogger', 'v3', credentials=creds)
         
-        print(f"🚀 [4/5] 업로드 중: {data['title']}")
+        print(f"🚀 [4/5] 블로그 업로드 중: {data['title']}")
         service.posts().insert(blogId=BLOG_ID, body={
-            "title": data['title'], "content": final_html, "labels": final_label,
+            "title": data['title'], 
+            "content": final_html, 
+            "labels": list(set(final_labels)),
             "customMetaData": data.get('meta_desc', '')
         }, isDraft=False).execute()
         
         print(f"✨ [5/5] 최종 성공: {data['title']}")
 
-    except Exception as e: print(f"❌ 에러 발생: {e}")
-
-if __name__ == "__main__":
-    run_automation()
+    except Exception as e: 
+        print(f"❌ 에러 발생: {e}")
