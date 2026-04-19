@@ -41,7 +41,7 @@ def get_best_model():
         return available[0] if available else "gemini-2.0-flash"
     except: return "gemini-2.0-flash"
 
-# ==================== [3] 네이버 수집 (정밀 검색 로직) ====================
+# ==================== [3] 네이버 수집 (가장 확실한 무적 로직) ====================
 def get_naver_target_data():
     now = datetime.now()
     m = [now.month, (now.month % 12) + 1, ((now.month + 1) % 12) + 1]
@@ -74,16 +74,25 @@ def get_naver_target_data():
         url = f"https://search.naver.com/search.naver?ssc=tab.blog.all&query={urllib.parse.quote(target_query)}"
         driver.get(url)
         time.sleep(5)
-        blog_elements = driver.find_elements(By.CSS_SELECTOR, "a.title_link")
+        
+        # 🌟 기현님 테스트에서 성공한 가장 확실한 전체 <a> 태그 수집 로직
+        all_links = driver.find_elements(By.TAG_NAME, "a")
         count = 0
-        for el in blog_elements:
-            href = el.get_attribute("href")
-            title = el.text.strip()
-            if href and "blog.naver.com" in href and len(title) > 8:
+        seen_urls = set()
+        
+        for link in all_links:
+            href = link.get_attribute("href")
+            title = link.text.strip()
+            
+            if href and "blog.naver.com" in href and len(title) > 5:
                 clean_url = href.split('?')[0].rstrip('/')
+                # 본문 포스팅 번호 확인
                 if re.search(r'/\d+$', clean_url):
-                    count += 1
-                    links_info += f"[{count}] {title} | 주소: {clean_url}\n"
+                    if clean_url not in seen_urls:
+                        count += 1
+                        seen_urls.add(clean_url)
+                        links_info += f"[{count}] {title} | 주소: {clean_url}\n"
+            
             if count >= 10: break
     finally: driver.quit()
     return target_query, links_info
@@ -106,7 +115,7 @@ def create_summary_card_tag(summary_list, title):
     data_uri = f"data:image/svg+xml;base64,{b64_svg}"
     return f'<div style="text-align:center; margin:40px 0;"><img src="{data_uri}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{title} 핵심 요약 카드"/></div>'
 
-# ==================== [5] 원고 생성 (프롬프트 강화) ====================
+# ==================== [5] 원고 생성 (프롬프트 완벽 강화) ====================
 def generate_master_content():
     keyword, reference_blogs = get_naver_target_data()
     best_model = get_best_model()
@@ -117,7 +126,7 @@ def generate_master_content():
     current_year = now.year
 
     prompt = f"""
-[오늘의 시점]: {now.strftime('%Y년 %m일')}
+[오늘의 시점]: {now.strftime('%Y년 %m월 %d일')}
 [타겟 키워드]: {keyword}
 [참고 데이터]: {reference_blogs}
 
@@ -127,10 +136,11 @@ def generate_master_content():
 2. **목차**: 서론 바로 다음에 올 수 있도록 `<nav>` 태그로 목차(TOC)를 생성하라. 내부 앵커 링크 포함.
 3. **본문**: <h2>(파란 바 스타일)와 <h3>(밑줄 스타일)를 체계적으로 사용하라.
 4. **요소**: 표(Table) 3개 이상, 리스트(UL/OL) 5개 이상 필수 포함.
-5. **AI 말투 제거**: "출처를 종합했다", "조언이다", "작성되었습니다" 같은 AI 면피용 문구 절대 금지. 사람이 직접 쓴 것처럼 정보를 바로 꽂아라.
-6. **2026년 고정**: 참고 데이터에 과거 연도가 있더라도 무시하고 {current_year}년 최신 정보라고 작성하라.
-7. **하단 섹션**: '더 알아보기' 섹션을 만들고 관련 키워드 4개 이상을 리스트로 작성하라.
-8. **데이터**: 'summary' 필드에 본문 핵심 키워드 5자 이내 3개를 담아라. 'slug' 필드에 영어 퍼머링크를 생성하라.
+5. **새창 링크**: 본문 내에 유효한 새창 링크(`<a href="..." target="_blank">`) 최소 8개 이상 포함 (구글 검색 링크 등 활용 가능).
+6. **AI 말투 제거**: "출처를 종합했다", "조언이다", "작성되었습니다" 같은 AI 면피용 문구 절대 금지. 사람이 직접 쓴 것처럼 정보를 바로 꽂아라.
+7. **2026년 고정**: 참고 데이터에 과거 연도가 있더라도 무시하고 {current_year}년 최신 정보라고 작성하라.
+8. **하단 섹션**: 문서 맨 아래에 '더 알아보기' 섹션을 만들고 관련 키워드 새창 링크 4개 이상을 리스트로 작성하라.
+9. **데이터**: 'summary' 필드에 본문 핵심 키워드 5자 이내 3개를 담아라. 'slug' 필드에 연도가 포함되지 않은 영어 퍼머링크를 생성하라.
 
 [출력 포맷]: JSON (title, meta_desc, meta_keys, slug, summary, content, label_indices)
 """
@@ -143,7 +153,7 @@ def generate_master_content():
 def run_automation():
     print("🚀 [2/5] 프로세스 시작...")
     try:
-        # 🌟 깃허브 시크릿에서 토큰 복구
+        # 깃허브 시크릿에서 토큰 복구
         token_base64 = os.environ.get("BLOGGER_TOKEN_PKL")
         if token_base64:
             with open('token.json', 'wb') as f:
@@ -163,15 +173,15 @@ def run_automation():
         insertion = f"{card_tag}{ads_tag}"
 
         # 2. 🌟 HTML 구조 강제 재배치 (서론 -> 목차 -> 카드/광고 -> 본문)
-        # 제미나이가 만든 목차(nav) 태그 바로 뒤에 카드와 광고를 넣습니다.
         if "</nav>" in content:
             content = content.replace("</nav>", f"</nav>{insertion}")
         else:
-            # 목차가 없다면 본문 가장 앞에 삽입
             content = insertion + content
 
         # 3. 스타일링 적용
         final_html = f"""
+        <meta name="description" content="{data.get('meta_desc', '')}">
+        <meta name="keywords" content="{data.get('meta_keys', '')}">
         <style>
             .entry-content {{ font-size: 18px; line-height: 2.0; color: #333; font-family: 'Malgun Gothic', sans-serif; }}
             .entry-content h2 {{ font-size: 28px; color: #2c3e50; border-left: 10px solid #3498db; padding: 10px 15px; margin: 45px 0 25px; background: #f9f9f9; }}
@@ -190,7 +200,7 @@ def run_automation():
         <div class="entry-content">{content}</div>
         """
 
-        # 4. 🌟 라벨 인덱스 에러 방어 로직 (문제의 int() dict 에러 해결)
+        # 4. 🌟 라벨 인덱스 에러 방어 로직 (int() dict 에러 완전 해결)
         raw_indices = data.get('label_indices', [0])
         if not isinstance(raw_indices, list): raw_indices = [raw_indices]
         
@@ -204,8 +214,9 @@ def run_automation():
             except:
                 continue
         
-        # 라벨이 비어있으면 기본값
+        # 라벨이 비어있으면 기본값, 중복 제거 후 최대 2개까지만
         if not final_labels: final_labels = [LABEL_OPTIONS[0]]
+        final_labels = list(set(final_labels))[:2]
 
         # 5. 인증 및 업로드
         with open('token.json', 'rb') as t:
@@ -219,7 +230,7 @@ def run_automation():
         service.posts().insert(blogId=BLOG_ID, body={
             "title": data['title'], 
             "content": final_html, 
-            "labels": list(set(final_labels)),
+            "labels": final_labels,
             "customMetaData": data.get('meta_desc', '')
         }, isDraft=False).execute()
         
@@ -227,3 +238,6 @@ def run_automation():
 
     except Exception as e: 
         print(f"❌ 에러 발생: {e}")
+
+if __name__ == "__main__":
+    run_automation()
