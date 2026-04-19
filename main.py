@@ -133,9 +133,18 @@ def generate_master_content():
 def run_automation():
     try:
         data = generate_master_content()
-        if not data: return
+        if not data: 
+            print("❌ 원고 생성 실패")
+            return
         
-        # 카드 및 애드센스 삽입
+        # 🌟 [추가] 깃허브 시크릿에서 토큰 복구 로직
+        token_base64 = os.environ.get("BLOGGER_TOKEN_PKL")
+        if token_base64:
+            with open('token.json', 'wb') as f:
+                f.write(base64.b64decode(token_base64))
+            print("✅ 시크릿으로부터 token.json 복구 완료")
+        
+        # 카드 및 애드센스 삽입 (기존 유지)
         card_tag = create_summary_card_tag(data.get('summary'), data['title'])
         ads_tag = '<div style="margin:25px 0;"><script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2303846706279700" crossorigin="anonymous"></script><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-2303846706279700" data-ad-slot="1632085406" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
         
@@ -149,16 +158,26 @@ def run_automation():
             .intro {{ font-weight: bold; border-left: 5px solid #3498db; padding-left: 15px; margin-bottom: 20px; }}
         </style><div class="entry-content">{content}</div>"""
 
+        # 인증 및 서비스 빌드 (기존 유지)
         with open('token.json', 'rb') as t:
             creds = pickle.load(t)
-            if creds.expired: creds.refresh(Request())
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
         
         service = build('blogger', 'v3', credentials=creds)
+        
+        # 블로그 게시
+        print(f"🚀 블로그 업로드 중: {data['title']}")
         service.posts().insert(blogId=BLOG_ID, body={
-            "title": data['title'], "content": final_html,
+            "title": data['title'], 
+            "content": final_html,
             "labels": [LABEL_OPTIONS[i] for i in data.get('label_indices', [0])]
         }, isDraft=False).execute()
-        print(f"✨ 성공: {data['title']}")
-    except Exception as e: print(f"❌ 에러: {e}")
+        
+        print(f"✨ 최종 성공: {data['title']}")
 
-if __name__ == "__main__": run_automation()
+    except Exception as e: 
+        print(f"❌ 에러: {e}")
+
+if __name__ == "__main__": 
+    run_automation()
