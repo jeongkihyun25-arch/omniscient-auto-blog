@@ -129,7 +129,7 @@ def generate_master_content():
 단, 원본의 출처나 흔적이 남지 않도록 뉘앙스와 말투를 완전히 다르게 변형하여 네가 직접 경험하고 쓴 것처럼 작성하라.
 
 [작성 지침 - 절대 엄수]:
-1. **1개 블로그 집중 모방**: 전체를 얕게 요약하지 마라. 선택한 1개의 블로그 내용을 바닥까지 파고들어라.
+1. **1개 블로그 집중 모방**: 전체를 얕게 요약하지 마라. 선택한 1개의 블로그 내용을 바닥까지 파고들어라. 제목도 해당 블로그를 참고하여 검색이 잘 될 만한 매력적인 한글 SEO 제목으로 지어라.
 2. **시간적 표현 절대 금지**: "2026년", "최신", "올해", "현재", "최근" 같은 단어는 제목, 본문 어디에도 절대 쓰지 마라. (사용한 즉시 탈락)
 3. **AI 말투 삭제**: "출처를 종합했다", "작성되었습니다", "알아보겠습니다" 같은 기계적인 멘트 금지.
 4. **서론 및 목차(앵커)**: 서론은 호기심을 유발하는 문장으로 `<p class="intro">` 태그 안에 작성하라. 서론 바로 밑에 `<nav>` 태그로 목차를 만들고, `<a href="#sec1">` 형태의 앵커 링크와 `<h2 id="sec1">` 형태의 본문 소제목 ID를 일치시켜 클릭 시 스크롤 이동하게 하라.
@@ -140,7 +140,7 @@ def generate_master_content():
 7. **구조화 요소**: 표(Table) 3개 이상, 리스트(UL/OL) 5개 이상 필수 포함.
 8. **하단 '더 알아보기' 섹션**: 문서 맨 아래에 관련 키워드로 구글 검색 새창 링크 4개 이상을 리스트로 작성하라.
 9. **참고 출처 추적**: 네가 선택해서 집중 모방한 1개의 블로그 주소를 'used_references' 배열에 딱 1개만 반환하라.
-10. **슬러그**: 'slug' 필드에 연도가 없는 짧은 영문 퍼머링크를 생성하라. (예: travel-tips-korea)
+10. **슬러그(퍼머링크용)**: 네가 작성한 한글 제목에서 핵심 키워드 2~3개만 뽑아서 짧은 영어 단어들의 조합으로 만들어라. (예: vietnam-travel-tips)
 11. **내용 중복 방지 (독창성)**: 1년 내내 매일 글이 발행되어도 소재가 고갈되거나 겹치지 않도록, 누구나 아는 뻔한 내용은 과감히 생략하고 아주 구체적이고 희소성 있는 '니치(Niche)'한 정보와 꿀팁 위주로 글을 구성하라.
 
 [출력 포맷]: JSON (title, meta_desc, meta_keys, slug, summary, content, label_indices, used_references)
@@ -150,7 +150,7 @@ def generate_master_content():
         return json.loads(response.text)
     except: return None
 
-# ==================== [6] 실행 및 블로거 업로드 (애드센스 3개 + 완벽 CSS + 2단계 업로드) ====================
+# ==================== [6] 실행 및 블로거 업로드 ====================
 def run_automation():
     print("🚀 [2/5] 프로세스 시작...")
     try:
@@ -165,14 +165,12 @@ def run_automation():
             print("❌ 원고 생성 실패")
             return
         
-        # 🌟 제미나이가 타겟으로 삼아 모방한 딱 1개의 블로그 출처 로그 출력
         print("-" * 50)
         print(f"📚 [딥다이브 타겟 블로그 (모방 출처)]")
         for ref in data.get('used_references', []):
             print(f"🔗 {ref}")
         print("-" * 50)
         
-        # 기현님 애드센스 코드 (상/중/하단 배치용)
         ads_code = """
         <div style="margin:45px 0;">
             <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2303846706279700" crossorigin="anonymous"></script>
@@ -184,24 +182,20 @@ def run_automation():
         card_tag = create_summary_card_tag(data.get('summary', []), data['title'])
         content = data['content']
 
-        # 🌟 1. 상단 삽입 (서론 -> 목차 -> 요약카드 -> 애드센스 1 -> 본문)
         top_insertion = f"{card_tag}{ads_code}"
         if "</nav>" in content:
             content = content.replace("</nav>", f"</nav>{top_insertion}")
         else:
             content = top_insertion + content
 
-        # 🌟 2. 중간 삽입 (본문 중간의 h2 태그 위에 애드센스 2)
         h2_parts = content.split("<h2") 
         if len(h2_parts) >= 3:
             mid_index = len(h2_parts) // 2
             h2_parts[mid_index] = ads_code + "<h2" + h2_parts[mid_index]
             content = "<h2".join(h2_parts)
 
-        # 🌟 3. 하단 삽입 (문서 맨 끝에 애드센스 3)
         content = content + ads_code
 
-        # CSS 스크롤 보정 (scroll-margin-top: 120px)
         final_html = f"""
         <meta name="description" content="{data.get('meta_desc', '')}">
         <meta name="keywords" content="{data.get('meta_keys', '')}">
@@ -225,7 +219,6 @@ def run_automation():
         <div class="entry-content">{content}</div>
         """
 
-        # 라벨 인덱스 (1개 강제)
         raw_indices = data.get('label_indices', [0])
         if not isinstance(raw_indices, list): raw_indices = [raw_indices]
         
@@ -240,7 +233,6 @@ def run_automation():
         if not final_labels: final_labels = [LABEL_OPTIONS[0]]
         final_labels = list(set(final_labels))[:1]
 
-        # 블로그 API 인증
         with open('token.json', 'rb') as t:
             creds = pickle.load(t)
             if creds and creds.expired and creds.refresh_token:
@@ -248,28 +240,24 @@ def run_automation():
         
         service = build('blogger', 'v3', credentials=creds)
         
-        # 🌟 1단계: 영어 슬러그 확보용 초안 생성 (퍼머링크 고정)
-        print(f"🚀 [4/5] 1단계: 영어 슬러그 확보용 초안 생성 ({data.get('slug', 'auto-post')})")
+        # 🌟 1. 0.1초 닌자 트릭: 영어 슬러그로 먼저 던져서 예쁜 주소 확보!
         slug_text = data.get('slug', 'auto-post')
-        if not slug_text.strip(): slug_text = "auto-post"
+        print(f"🚀 [4/5] 주소 생성용 트릭 실행 중... ({slug_text})")
         
         temp_post = service.posts().insert(blogId=BLOG_ID, body={
             "title": slug_text, 
-            "content": "가독성을 위해 본문이 조립 중입니다...",
+            "content": "loading...",
             "labels": final_labels
-        }, isDraft=True).execute()
+        }, isDraft=False).execute()
 
-        # 🌟 2단계: 최종 원고(한글 제목)로 내용 덮어쓰기 및 발행
-        print(f"🚀 [4/5] 2단계: 최종 원고 업데이트 및 발행 ({data['title']})")
+        # 🌟 2. 진짜 한글 제목과 본문으로 눈 깜짝할 새 덮어쓰기!
+        print(f"🚀 [4/5] 진짜 한글 제목 덮어쓰는 중... ({data['title']})")
         service.posts().patch(blogId=BLOG_ID, postId=temp_post['id'], body={
-            "title": data['title'], 
+            "title": data['title'], # 제미나이가 만든 완벽한 한글 SEO 제목
             "content": final_html,
             "customMetaData": data.get('meta_desc', '')
-        }, isDraft=False).execute()
+        }).execute() 
         
         print(f"✨ [5/5] 최종 성공: {data['title']}")
 
     except Exception as e: print(f"❌ 에러 발생: {e}")
-
-if __name__ == "__main__":
-    run_automation()
