@@ -113,7 +113,7 @@ def create_summary_card_tag(summary_list, title):
     data_uri = f"data:image/svg+xml;base64,{b64_svg}"
     return f'<div style="text-align:center; margin:40px 0;"><img src="{data_uri}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{title} 핵심 요약 카드"/></div>'
 
-# ==================== [5] 원고 생성 (1타겟 모방 딥다이브 + 구글링크 보정) ====================
+# ==================== [5] 원고 생성 (1타겟 모방 딥다이브 + 구글 지도/검색 링크 적용) ====================
 def generate_master_content():
     keyword, reference_blogs = get_naver_target_data()
     best_model = get_best_model()
@@ -133,12 +133,12 @@ def generate_master_content():
 2. **시간적 표현 절대 금지**: "2026년", "최신", "올해", "현재", "최근" 같은 단어는 제목, 본문 어디에도 절대 쓰지 마라. (사용한 즉시 탈락)
 3. **AI 말투 삭제**: "출처를 종합했다", "작성되었습니다", "알아보겠습니다" 같은 기계적인 멘트 금지.
 4. **서론 및 목차(앵커)**: 서론은 호기심을 유발하는 문장으로 `<p class="intro">` 태그 안에 작성하라. 서론 바로 밑에 `<nav>` 태그로 목차를 만들고, `<a href="#sec1">` 형태의 앵커 링크와 `<h2 id="sec1">` 형태의 본문 소제목 ID를 일치시켜 클릭 시 스크롤 이동하게 하라.
-5. **작동하는 실제 링크 분류 적용 (최소 8개)**: 임의로 만든 가짜 링크나 'googleusercontent' 같은 잘못된 형식은 절대 금지!
-   - **장소 (식당, 숙소, 관광지 등)**: 구글 지도 검색 링크 사용 -> <a href="https://www.google.com/maps/search/장소명7" target="_blank">
-   - **정보/교통 (교통편, 예매, 팁 등)**: 구글 일반 검색 링크 사용 -> <a href="https://www.google.com/search?q=정확한검색어" target="_blank">
+5. **작동하는 실제 구글 링크 적용 (최소 8개)**: 임의로 만든 가짜 링크나 이상한 형식은 절대 금지! 공식 사이트 주소를 모른다면 아래 양식을 무조건 따를 것.
+   - **장소 (식당, 공항, 숙소, 관광지 등)**: 구글 지도 공식 검색 링크 사용 -> <a href="https://www.google.com/maps/search/?api=1&query=정확한장소명" target="_blank">
+   - **정보/교통 (교통편, 팁, 예약 등)**: 구글 일반 검색 링크 사용 -> <a href="https://www.google.com/search?q=정확한검색어" target="_blank">
 6. **SVG 3줄 요약**: 'summary' 필드에 단어를 한 글자씩 쪼개지 마라! 반드시 **[이모지 1개 + 띄어쓰기 포함 6글자 이하의 명사형 단어]** 조합으로 말이 되는 딱 3개의 구문을 배열로 반환하라. (예: ["🛂 여권 준비물", "✈️ 모바일 티켓", "🎒 기내 수하물"])
 7. **구조화 요소**: 표(Table) 3개 이상, 리스트(UL/OL) 5개 이상 필수 포함.
-8. **하단 '더 알아보기' 섹션**: 문서 맨 아래에 관련 키워드로 구글 검색 새창 링크 4개 이상을 리스트로 작성하라.
+8. **하단 '더 알아보기' 섹션**: 문서 맨 아래에 관련 키워드로 구글 일반 검색 새창 링크 4개 이상을 리스트로 작성하라.
 9. **참고 출처 추적**: 네가 선택해서 집중 모방한 1개의 블로그 주소를 'used_references' 배열에 딱 1개만 반환하라.
 10. **슬러그(퍼머링크용)**: 네가 작성한 한글 제목에서 핵심 키워드 2~3개만 뽑아서 짧은 영어 단어들의 조합으로 만들어라. (예: vietnam-travel-tips)
 11. **내용 중복 방지 (독창성)**: 1년 내내 매일 글이 발행되어도 소재가 고갈되거나 겹치지 않도록, 누구나 아는 뻔한 내용은 과감히 생략하고 아주 구체적이고 희소성 있는 '니치(Niche)'한 정보와 꿀팁 위주로 글을 구성하라.
@@ -150,7 +150,7 @@ def generate_master_content():
         return json.loads(response.text)
     except: return None
 
-# ==================== [6] 실행 및 블로거 업로드 ====================
+# ==================== [6] 실행 및 블로거 업로드 (퍼머링크 닌자 트릭) ====================
 def run_automation():
     print("🚀 [2/5] 프로세스 시작...")
     try:
@@ -253,7 +253,7 @@ def run_automation():
         # 🌟 2. 진짜 한글 제목과 본문으로 눈 깜짝할 새 덮어쓰기!
         print(f"🚀 [4/5] 진짜 한글 제목 덮어쓰는 중... ({data['title']})")
         service.posts().patch(blogId=BLOG_ID, postId=temp_post['id'], body={
-            "title": data['title'], # 제미나이가 만든 완벽한 한글 SEO 제목
+            "title": data['title'], 
             "content": final_html,
             "customMetaData": data.get('meta_desc', '')
         }).execute() 
@@ -261,3 +261,6 @@ def run_automation():
         print(f"✨ [5/5] 최종 성공: {data['title']}")
 
     except Exception as e: print(f"❌ 에러 발생: {e}")
+
+if __name__ == "__main__":
+    run_automation()
