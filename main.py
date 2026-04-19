@@ -41,7 +41,7 @@ def get_best_model():
         return available[0] if available else "gemini-2.0-flash"
     except: return "gemini-2.0-flash"
 
-# ==================== [3] 네이버 수집 ====================
+# ==================== [3] 네이버 수집 (🔥 1타겟 고정 + 4서브 랜덤 본문 스크래핑) ====================
 def get_naver_target_data():
     now = datetime.now()
     m = [now.month, (now.month % 12) + 1, ((now.month + 1) % 12) + 1]
@@ -69,16 +69,20 @@ def get_naver_target_data():
     options.add_argument("--disable-dev-shm-usage")
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     
-    links_info = ""
+    valid_links = []
+    scraped_data = ""
+    target_blog_url = ""
+    links_info_selected = ""
+
     try:
         url = f"https://search.naver.com/search.naver?ssc=tab.blog.all&query={urllib.parse.quote(target_query)}"
         driver.get(url)
         time.sleep(5)
         
         all_links = driver.find_elements(By.TAG_NAME, "a")
-        count = 0
         seen_urls = set()
         
+        # 1. 먼저 상위 15개의 유효 블로그 링크 확보
         for link in all_links:
             href = link.get_attribute("href")
             title = link.text.strip()
@@ -87,13 +91,40 @@ def get_naver_target_data():
                 clean_url = href.split('?')[0].rstrip('/')
                 if re.search(r'/\d+$', clean_url):
                     if clean_url not in seen_urls:
-                        count += 1
                         seen_urls.add(clean_url)
-                        links_info += f"[{count}] {title} | 주소: {clean_url}\n"
+                        valid_links.append({"title": title, "url": clean_url})
             
-            if count >= 10: break
+            if len(valid_links) >= 15: break
+
+        # 2. 1위 글 고정 + 나머지 중 4개 랜덤 추출 (내용 중복 방지)
+        if len(valid_links) > 5:
+            selected_links = [valid_links[0]] + random.sample(valid_links[1:], 4)
+        else:
+            selected_links = valid_links
+
+        if selected_links:
+            target_blog_url = selected_links[0]['url'] # 출처 기록용 메인 타겟
+            print(f"\n🔍 [본문 추출 시작: 1위 고정 + 서브 랜덤 4개]")
+            
+            # 3. 5개 블로그 순회하며 진짜 본문 스크래핑
+            for i, item in enumerate(selected_links):
+                mobile_url = item['url'].replace("blog.naver.com", "m.blog.naver.com")
+                driver.get(mobile_url)
+                time.sleep(2)
+                
+                try: text = driver.find_element(By.CSS_SELECTOR, ".se-main-container").text
+                except:
+                    try: text = driver.find_element(By.TAG_NAME, "body").text
+                    except: text = "수집 실패"
+
+                clean_text = text.replace('\n', ' ')[:1500]
+                role = "메인 타겟(뼈대)" if i == 0 else "서브 타겟(후기 추출용)"
+                scraped_data += f"--- [{role}] {item['title']} ---\n{clean_text}...\n\n"
+                links_info_selected += f"[{i+1}] {role} | {item['title']} \n"
+                print(f"  👉 [{role}] 텍스트 확보 완료!")
+
     finally: driver.quit()
-    return target_query, links_info
+    return target_query, links_info_selected, target_blog_url, scraped_data
 
 # ==================== [4] 유동적 SVG 요약 카드 ====================
 def create_summary_card_tag(summary_list, title):
@@ -113,43 +144,48 @@ def create_summary_card_tag(summary_list, title):
     data_uri = f"data:image/svg+xml;base64,{b64_svg}"
     return f'<div style="text-align:center; margin:40px 0;"><img src="{data_uri}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{title} 핵심 요약 카드"/></div>'
 
-# ==================== [5] 원고 생성 (사람 냄새 + 자연스러운 비교 카피라이팅) ====================
+# ==================== [5] 원고 생성 (실제 본문 5개 분석 & AI 냄새 완벽 제거) ====================
 def generate_master_content():
-    keyword, reference_blogs = get_naver_target_data()
+    # 이제 진짜 본문 텍스트 합본(scraped_data)을 가져옵니다!
+    keyword, reference_blogs, target_blog_url, scraped_data = get_naver_target_data()
     best_model = get_best_model()
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel(best_model)
 
     prompt = f"""
 [타겟 키워드]: {keyword}
-[수집된 네이버 블로그 10개]: 
+[참고 네이버 블로그 리스트]: 
 {reference_blogs}
+[🔥 집중 분석 타겟 (실제 1위 블로그 뼈대 + 서브 블로그 4개 후기 합본)]: 
+{scraped_data}
 
-[미션]: 위 10개의 블로그 중 가장 정보가 뛰어나고 유용한 블로그를 메인 타겟으로 삼아 분석하라. 여기에 다른 블로그들의 '실제 경험담'을 덧붙여 5,000자 이상의 초고품질 딥다이브(Deep-dive) 포스팅을 작성하라. 
-단, AI가 쓴 티가 나지 않도록 매우 자연스럽고 사람 냄새나는 1인칭 블로거 말투로 완벽하게 가공하라.
+[미션]: 위 [집중 분석 타겟]의 '실제 텍스트 본문'을 완벽하게 해부하여 5,000자 이상의 초고품질 딥다이브 포스팅으로 재창조하라. 
 
 [A급 블로그 카피라이팅 지시사항 - 절대 엄수]:
-1. **클릭을 유발하는 자연스러운 제목**: 사전적 제목(예: 인천 스마트패스 가이드) 금지. "안 하면 줄 40분 서는 이유", "출국 10분 줄이려면 필수" 처럼 구체적 상황과 '손실 회피' 심리를 자극하라. 끝에 "(실제 후기)", "(꿀팁)"을 붙이되 매번 똑같은 패턴이 되지 않게 자연스럽게 변주하라.
-2. **"실제 후기 + 꿀팁" 파트 필수 (소스 세탁)**: 수집된 10개 블로그들의 경험담을 모아 '내가 직접 겪은 생생한 후기' 파트를 만들어라. (예: 실제 써본 느낌, 몇 분 줄었는지, 언제 쓰면 좋은지). 단, 원작자의 성별, 나이, 특이한 가족사 등 너무 사적인 정보는 철저히 배제하고, 누구나 공감할 수 있는 보편적인 1인칭 후기로 세탁(가공)하라.
-3. **🔥 억지 금지! 자연스러운 "비교 분석" 파트**: 무작정 아무거나 비교하지 마라. 주제와 관련하여 사람들이 진짜로 고민하고 헷갈려하는 2가지(예: 스마트패스 vs 일반 대기줄, 로밍 vs 이심, 환전 vs 트래블월렛 등)를 찾아 자연스럽게 대조하라. 억지스럽게 쥐어짜낸 비교는 절대 금지.
-4. **시간적 표현 절대 금지**: "2026년", "최신", "올해", "현재", "최근" 같은 단어는 제목, 본문 어디에도 절대 쓰지 마라. (사용한 즉시 탈락)
-5. **AI 멘트 원천 차단**: "출처를 종합했다", "작성되었습니다", "알아보겠습니다" 같은 기계적인 멘트 절대 금지.
-6. **서론 및 목차(앵커)**: 서론은 호기심을 유발하는 문장으로 `<p class="intro">` 태그 안에 작성. 서론 바로 밑에 `<nav>` 태그로 목차를 만들고, `<a href="#sec1">` 형태의 앵커 링크와 `<h2 id="sec1">` 형태의 본문 소제목 ID를 일치시켜 클릭 시 스크롤 이동하게 하라.
-7. **작동하는 실제 링크 적용 (최소 8개 이상 필수, 모두 target="_blank")**: 
-   - **장소 (식당, 공항, 숙소, 관광지 등)**: 구글 지도 공식 검색 링크 사용 장소당 1개의 단어만 사용 합쳐 쓰지 말것 -> <a href="https://www.google.com/maps/search/장소명" target="_blank">
+1. **AI 냄새나는 가짜 소설 금지! (소스 세탁)**: "지난번 일본 여행 갈 때~", "돈이 시간을 사준다" 같은 전형적이고 뻔한 AI 소설을 억지로 지어내지 마라! 반드시 내가 제공한 [집중 분석 타겟] 본문 안에 있는 '실제 사람의 정보, 꿀팁, 문제점' 팩트를 활용하라. 단, 원작자의 너무 사적인 TMI는 쳐내고, 말투와 뉘앙스만 자연스러운 1인칭으로 세탁(가공)하라.
+2. **클릭을 유발하는 자극형 제목**: 사전적 제목 금지. "안 하면 줄 40분 서는 이유", "출국 10분 줄이려면 필수" 처럼 '손실 회피' 심리를 자극하라. 끝에 "(실제 후기)", "(꿀팁)"을 붙여라.
+3. **🔥 자연스러운 "비교 분석" 파트**: 억지 비교 절대 금지. 본문 내용을 바탕으로 사람들이 진짜로 헷갈려하는 2가지(예: 일반줄 vs 스마트패스 시간차이)를 찾아 대조하라.
+4. **시간적 표현 절대 금지**: "2026년", "최신", "올해", "현재", "최근" 같은 단어는 제목, 본문 어디에도 절대 금지.
+5. **AI 멘트 원천 차단**: "출처를 종합했다", "작성되었습니다", "알아보겠습니다" 같은 기계적인 멘트 금지.
+6. **작동하는 실제 링크 적용 (최소 8개 이상, 모두 target="_blank")**: 
+   - **장소 (식당, 공항, 숙소, 관광지 등)**: 구글 지도 공식 검색 링크 사용 여러 단어 조합해서 쓰지말것 -> <a href="https://www.google.com/maps/search/장소명" target="_blank">
    - **정보/교통 (교통편, 예매, 팁 등)**: 구글 일반 검색 링크 사용 -> <a href="https://www.google.com/search?q=정확한검색어" target="_blank">
-8. **SVG 3줄 요약**: 'summary' 필드에 단어를 한 글자씩 쪼개지 마라! 반드시 **[이모지 1개 + 띄어쓰기 포함 6글자 이하의 명사형 단어]** 조합으로 말이 되는 딱 3개의 구문을 배열로 반환하라. (예: ["🛂 여권 준비물", "✈️ 모바일 티켓", "🎒 기내 수하물"])
-9. **구조화 요소**: 표(Table) 3개 이상, 리스트(UL/OL) 5개 이상 필수 포함.
-10. **하단 '더 알아보기' 섹션**: 문서 맨 아래에 관련 키워드로 구글 일반 검색 새창 링크 4개 이상을 리스트로 작성하라.
-11. **참고 출처 추적**: 메인으로 모방한 1개의 블로그 주소를 'used_references' 배열에 딱 1개만 반환하라.
-12. **슬러그(퍼머링크용)**: 한글 제목에서 핵심 키워드 2~3개만 뽑아 짧은 영어 단어들의 조합으로 만들어라. (예: vietnam-travel-tips)
+7. **SVG 3줄 요약**: 'summary' 필드에 반드시 **[이모지 1개 + 띄어쓰기 포함 6글자 이하의 명사형 단어]** 조합으로 딱 3개의 구문을 배열로 반환하라.
+8. **구조화 요소**: 서론은 `<p class="intro">` 사용. 서론 밑에 `<nav>` 목차 및 `<h2 id="...">` 앵커 연동. 표 3개, 리스트 5개 이상.
+9. **하단 섹션**: 맨 아래 관련 키워드로 구글 일반 검색 새창 링크 4개 리스트 추가.
+10. **슬러그**: 한글 제목에서 핵심 키워드 2~3개만 뽑아 짧은 영어 단어들의 조합으로 생성 (예: vietnam-travel-tips).
+11. **내용 중복 방지**: 누구나 아는 뻔한 내용은 생략하고, 본문에서 추출한 구체적이고 희소성 있는 '니치(Niche)'한 꿀팁 위주로 작성.
 
-[출력 포맷]: JSON (title, meta_desc, meta_keys, slug, summary, content, label_indices, used_references)
+[출력 포맷]: JSON (title, meta_desc, meta_keys, slug, summary, content, label_indices)
 """
     try:
         response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
-        return json.loads(response.text)
-    except: return None
+        data = json.loads(response.text)
+        data['used_references'] = [target_blog_url]
+        return data
+    except Exception as e: 
+        print(f"제미나이 호출 오류: {e}")
+        return None
 
 # ==================== [6] 실행 및 블로거 업로드 (퍼머링크 트릭 적용) ====================
 def run_automation():
@@ -167,7 +203,7 @@ def run_automation():
             return
         
         print("-" * 50)
-        print(f"📚 [딥다이브 타겟 블로그 (모방 출처)]")
+        print(f"📚 [딥다이브 타겟 블로그 (실제 본문 스크래핑 완료)]")
         for ref in data.get('used_references', []):
             print(f"🔗 {ref}")
         print("-" * 50)
