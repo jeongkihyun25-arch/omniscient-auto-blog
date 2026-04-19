@@ -28,7 +28,7 @@ LABEL_OPTIONS = ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", 
 
 # ==================== [2] 최고 모델 선택 ====================
 def get_best_model():
-    print("🔍 [1/5] 최고 모델 탐색 중...")
+    print("🔍 [1/5] 모델 탐색 중...")
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
     try:
         res = requests.get(url, timeout=15).json()
@@ -41,10 +41,9 @@ def get_best_model():
         return available[0] if available else "gemini-2.0-flash"
     except: return "gemini-2.0-flash"
 
-# ==================== [3] 네이버 수집 (정밀 검색 로직) ====================
+# ==================== [3] 네이버 수집 (정밀도 강화) ====================
 def get_naver_target_data():
     now = datetime.now()
-    # 실시간 월별 키워드 생성 (2026년 고정 아님, 현재 날짜 기반)
     m = [now.month, (now.month % 12) + 1, ((now.month + 1) % 12) + 1]
     BASE_KEYWORDS = [
         "해외여행 준비물", "여권 발급", "여행자 보험", "비상약 리스트", "비지트 재팬", 
@@ -72,12 +71,10 @@ def get_naver_target_data():
     
     links_info = ""
     try:
-        # 블로그 탭 결과 직접 타겟팅
         url = f"https://search.naver.com/search.naver?ssc=tab.blog.all&query={urllib.parse.quote(target_query)}"
         driver.get(url)
         time.sleep(5)
-        
-        # 실제 블로그 링크 10개 추출 (a.title_link 선택자 활용)
+        # 블로그 제목 링크만 정확히 수집
         blog_elements = driver.find_elements(By.CSS_SELECTOR, "a.title_link")
         count = 0
         for el in blog_elements:
@@ -85,14 +82,13 @@ def get_naver_target_data():
             title = el.text.strip()
             if href and "blog.naver.com" in href and len(title) > 8:
                 count += 1
-                links_info += f"[{count}] 제목: {title} | 주소: {href}\n"
+                links_info += f"[{count}] {title} | 주소: {href}\n"
             if count >= 10: break
     finally: driver.quit()
     return target_query, links_info
 
-# ==================== [4] 유동적 SVG 요약 카드 (3줄 고정) ====================
+# ==================== [4] SVG 카드 (3줄/6자 엄수) ====================
 def create_summary_card_tag(summary_list, title):
-    # 6글자씩 3개 준비
     safe_list = [str(s).strip()[:6] for s in summary_list if s][:3]
     while len(safe_list) < 3: safe_list.append("") 
     l1, l2, l3 = safe_list
@@ -107,36 +103,32 @@ def create_summary_card_tag(summary_list, title):
     """
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
     data_uri = f"data:image/svg+xml;base64,{b64_svg}"
-    return f'<div style="text-align:center; margin:40px 0;"><img src="{data_uri}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{title} 핵심 요약 카드"/></div>'
+    return f'<div style="text-align:center; margin:40px 0;"><img src="{data_uri}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{title} 요약 카드"/></div>'
 
-# ==================== [5] 원고 생성 (AI 말투 제거 + SEO 강화) ====================
+# ==================== [5] 원고 생성 (AI 느낌 완전 제거) ====================
 def generate_master_content():
     keyword, reference_blogs = get_naver_target_data()
     best_model = get_best_model()
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel(best_model)
 
-    # 실시간 날짜 변수
     now = datetime.now()
-    current_date = now.strftime('%Y년 %m월 %d일')
-    current_year = now.year
+    current_date = now.strftime('%Y년 %m월')
 
     prompt = f"""
-[오늘의 날짜]: {current_date}
+[오늘의 시점]: {current_date}
 [타겟 키워드]: {keyword}
-[참고 데이터]: 
+[참고 블로그 데이터]: 
 {reference_blogs}
 
-[미션]: 위 블로그들을 분석하여 {current_year}년 최신 트렌드가 반영된 5,000자 이상의 고품질 SEO 원고를 작성하라.
-
-[작성 지침 - 절대 엄수]:
-1. **사람처럼 써라**: "다양한 출처를 종합했다", "전문적인 조언이다" 같은 AI 특유의 멘트는 절대 금지다. 서두에 군더더기 없이 바로 독자에게 필요한 혜택과 정보로 시작하라. (~합니다, ~하세요 어조 사용)
-2. **2026년 반영**: 현재는 {current_year}년이다. 참고 데이터에 과거 연도가 있더라도 무시하고 무조건 {current_year}년 최신 정보라고 작성하라.
-3. **SEO 구조화**: <h2>와 <h3> 태그를 체계적으로 사용하여 전문적인 가독성을 확보하라.
-4. **슬러그(Slug)**: 연도를 제외한 키워드 중심의 영문 슬러그를 짧게 생성하라 (예: passport-issuance-guide).
-5. **메타 정보**: meta_desc는 검색 결과 클릭을 유도하는 매력적인 문구로 작성하라.
-6. **SVG 요약**: 'summary' 필드에 본문의 핵심 키워드 **6글자 이내** 단어 3개를 뽑아라.
-7. **구성 요소**: 표(Table) 2개 이상, 리스트 5개 이상, 실존하는 유효한 외부 링크 8개 이상을 자연스럽게 포함하라.
+[미션]: 위 데이터를 기반으로 5,000자 이상의 전문가 포스팅을 작성하라.
+[작성 지침 - 어기면 탈락]:
+1. **AI 면피용 멘트 금지**: "종합하여 작성되었습니다", "출처는 다음과 같습니다" 같은 말 쓰지 마라. 서두에 군더더기 없이 독자가 바로 얻을 이득으로 시작하라.
+2. **2026년 반영**: 현재 시점({current_date})을 기준으로 '올해', '최신' 정보를 작성하라.
+3. **구조**: 반드시 <h2>(파란 바 스타일)와 <h3>(밑줄 스타일)를 사용해 가독성을 높여라.
+4. **라벨**: 딱 1개만 선택하라. `label_indices` 필드에 숫자 하나만 넣어라.
+5. **SVG 3줄**: 'summary' 필드에 6글자 이내의 단어 딱 3개를 추출하라.
+6. **SEO 슬러그**: 연도 없이 키워드 중심의 영어 슬러그를 길게 생성하라 (예: travel-insurance-best-guide).
 
 [출력 포맷]: JSON (title, meta_desc, meta_keys, slug, summary, content, label_indices)
 """
@@ -145,32 +137,31 @@ def generate_master_content():
         return json.loads(response.text)
     except: return None
 
-# ==================== [6] 실행 및 블로거 업로드 (디자인 반영) ====================
+# ==================== [6] 업로드 및 디자인 반영 ====================
 def run_automation():
     print("🚀 [2/5] 프로세스 시작...")
     try:
         token_base64 = os.environ.get("BLOGGER_TOKEN_PKL")
         if token_base64:
             with open('token.json', 'wb') as f: f.write(base64.b64decode(token_base64))
-            print("✅ [3/5] 인증 토큰 복구 완료")
+            print("✅ [3/5] 토큰 복구 완료")
 
         data = generate_master_content()
         if not data: return
         
-        # 요약 카드 및 광고 삽입
+        # 디자인 요소 삽입
         card_tag = create_summary_card_tag(data.get('summary', []), data['title'])
-        ads_tag = '<div style="margin:30px 0;"><script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2303846706279700" crossorigin="anonymous"></script><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-2303846706279700" data-ad-slot="1632085406" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
+        ads_tag = '<div style="margin:35px 0;"><script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2303846706279700" crossorigin="anonymous"></script><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-2303846706279700" data-ad-slot="1632085406" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
         
         content = data['content']
         insertion = card_tag + ads_tag
+        # TOC(nav) 뒤에 삽입하거나 맨 앞에 삽입
         content = content.replace("</nav>", f"</nav>{insertion}") if "</nav>" in content else insertion + content
 
-        # 기현님 스타일 반영 CSS (18px 큰 글씨 + 파란색 헤더 바)
+        # 폰트 18px + H2/H3 스타일링 강화
         final_html = f"""
-        <meta name="description" content="{data['meta_desc']}">
-        <meta name="keywords" content="{data['meta_keys']}">
         <style>
-            .entry-content {{ font-size: 18px; line-height: 2.0; color: #333; font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }}
+            .entry-content {{ font-size: 18px; line-height: 2.0; color: #333; font-family: 'Malgun Gothic', sans-serif; }}
             .entry-content h2 {{ 
                 font-size: 28px; color: #2c3e50; border-left: 10px solid #3498db; 
                 padding: 10px 15px; margin: 45px 0 25px; background: #f9f9f9; 
@@ -180,38 +171,31 @@ def run_automation():
                 padding-bottom: 8px; margin: 35px 0 20px; 
             }}
             .entry-content p {{ margin-bottom: 25px; }}
+            .entry-content b {{ color: #e74c3c; }}
             .entry-content table {{ width: 100%; border-collapse: collapse; margin: 30px 0; }}
             .entry-content th {{ background: #3498db; color: white; padding: 12px; }}
             .entry-content td {{ border: 1px solid #ddd; padding: 12px; text-align: center; }}
-            .intro {{ background: #f0f7ff; padding: 25px; border-radius: 15px; border-left: 5px solid #3498db; margin-bottom: 40px; font-weight: bold; }}
-            b {{ color: #e74c3c; }} /* 중요 강조 빨간색 */
         </style>
         <div class="entry-content">{content}</div>
         """
 
-        # 라벨 및 인증 처리
-        raw_indices = data.get('label_indices', [0])
-        safe_labels = []
-        for i in raw_indices:
-            try:
-                idx = int(i) % len(LABEL_OPTIONS)
-                safe_labels.append(LABEL_OPTIONS[idx])
-            except:
-                safe_labels.append(LABEL_OPTIONS[0])
-        
+        # 라벨 강제 제한 (1개만)
+        raw_idx = data.get('label_indices', [0])[0] # 첫 번째 것만 취함
+        final_label = [LABEL_OPTIONS[int(raw_idx) % len(LABEL_OPTIONS)]]
+
         with open('token.json', 'rb') as t:
             creds = pickle.load(t)
             if creds.expired: creds.refresh(Request())
         
         service = build('blogger', 'v3', credentials=creds)
         
-        print(f"🚀 [4/5] 블로그 업로드 중: {data['title']}")
+        # 포스팅 실행 (슬러그 반영 시도)
+        print(f"🚀 [4/5] 업로드 중: {data['title']}")
         service.posts().insert(blogId=BLOG_ID, body={
             "title": data['title'], 
             "content": final_html, 
-            "labels": list(set(safe_labels)),
-            "customMetaData": data.get('meta_desc', ''),
-            "location": {"name": "South Korea"}
+            "labels": final_label,
+            "customMetaData": data.get('meta_desc', '')
         }, isDraft=False).execute()
         
         print(f"✨ [5/5] 최종 성공: {data['title']}")
