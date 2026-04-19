@@ -1,13 +1,17 @@
-name: Blogger Automation with Selenium
+name: Blogger Automation with Naver Search
 
 on:
   schedule:
-    - cron: '0 0 * * *' # 매일 정해진 시간에 자동 실행 (필요시 수정)
-  workflow_dispatch: # 수동 실행 버튼 활성화
+    - cron: '0 2 * * *' # 매일 한국시간 오전 11시 자동 실행
+  repository_dispatch:
+    types: [run_automation] # 🌟 구글 GAS 신호를 받기 위한 설정
+  workflow_dispatch: # 수동 실행 버튼
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 🌟 중요: 수정된 키워드 파일을 다시 저장할 권한
 
     steps:
       - name: Checkout code
@@ -18,19 +22,28 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests selenium webdriver-manager
-
       - name: Install Google Chrome
         run: |
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable
 
-      - name: Run Script
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests selenium webdriver-manager google-generativeai google-api-python-client google-auth-oauthlib
+
+      - name: Run Script 
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BLOG_ID: ${{ secrets.BLOG_ID }}
-          BLOGGER_COOKIES: ${{ secrets.BLOGGER_COOKIES }}
+          BLOGGER_TOKEN_PKL: ${{ secrets.BLOGGER_TOKEN_PKL }} # 🌟 우리가 만든 외계어 토큰
         run: python main.py
+
+      # 🌟 중요: 실행 후 소모된 키워드 리스트(keywords_queue.txt)를 깃허브에 다시 저장
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add keywords_queue.txt
+          git commit -m "Update keyword queue: Consumed one [skip ci]" || echo "No changes to commit"
+          git push
