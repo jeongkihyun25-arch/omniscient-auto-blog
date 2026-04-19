@@ -28,7 +28,7 @@ LABEL_OPTIONS = ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", 
 
 # ==================== [2] 최고 모델 선택 ====================
 def get_best_model():
-    print("🔍 [1/5] 모델 탐색 중...")
+    print("🔍 [1/5] 최고 모델 탐색 중...")
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
     try:
         res = requests.get(url, timeout=15).json()
@@ -41,7 +41,7 @@ def get_best_model():
         return available[0] if available else "gemini-2.0-flash"
     except: return "gemini-2.0-flash"
 
-# ==================== [3] 네이버 수집 (정밀도 강화) ====================
+# ==================== [3] 네이버 수집 (정밀 검색 로직) ====================
 def get_naver_target_data():
     now = datetime.now()
     m = [now.month, (now.month % 12) + 1, ((now.month + 1) % 12) + 1]
@@ -74,22 +74,23 @@ def get_naver_target_data():
         url = f"https://search.naver.com/search.naver?ssc=tab.blog.all&query={urllib.parse.quote(target_query)}"
         driver.get(url)
         time.sleep(5)
-        # 블로그 제목 링크만 정확히 수집
         blog_elements = driver.find_elements(By.CSS_SELECTOR, "a.title_link")
         count = 0
         for el in blog_elements:
             href = el.get_attribute("href")
             title = el.text.strip()
             if href and "blog.naver.com" in href and len(title) > 8:
-                count += 1
-                links_info += f"[{count}] {title} | 주소: {href}\n"
+                clean_url = href.split('?')[0].rstrip('/')
+                if re.search(r'/\d+$', clean_url):
+                    count += 1
+                    links_info += f"[{count}] {title} | 주소: {clean_url}\n"
             if count >= 10: break
     finally: driver.quit()
     return target_query, links_info
 
-# ==================== [4] SVG 카드 (3줄/6자 엄수) ====================
+# ==================== [4] 유동적 SVG 요약 카드 ====================
 def create_summary_card_tag(summary_list, title):
-    safe_list = [str(s).strip()[:6] for s in summary_list if s][:3]
+    safe_list = [str(s).strip()[:5] for s in summary_list if s][:3]
     while len(safe_list) < 3: safe_list.append("") 
     l1, l2, l3 = safe_list
 
@@ -103,9 +104,9 @@ def create_summary_card_tag(summary_list, title):
     """
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
     data_uri = f"data:image/svg+xml;base64,{b64_svg}"
-    return f'<div style="text-align:center; margin:40px 0;"><img src="{data_uri}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{title} 요약 카드"/></div>'
+    return f'<div style="text-align:center; margin:40px 0;"><img src="{data_uri}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{title} 핵심 요약 카드"/></div>'
 
-# ==================== [5] 원고 생성 (AI 느낌 완전 제거) ====================
+# ==================== [5] 원고 생성 (프롬프트 강화) ====================
 def generate_master_content():
     keyword, reference_blogs = get_naver_target_data()
     best_model = get_best_model()
@@ -113,22 +114,23 @@ def generate_master_content():
     model = genai.GenerativeModel(best_model)
 
     now = datetime.now()
-    current_date = now.strftime('%Y년 %m월')
+    current_year = now.year
 
     prompt = f"""
-[오늘의 시점]: {current_date}
+[오늘의 시점]: {now.strftime('%Y년 %m일')}
 [타겟 키워드]: {keyword}
-[참고 블로그 데이터]: 
-{reference_blogs}
+[참고 데이터]: {reference_blogs}
 
-[미션]: 위 데이터를 기반으로 5,000자 이상의 전문가 포스팅을 작성하라.
-[작성 지침 - 어기면 탈락]:
-1. **AI 면피용 멘트 금지**: "종합하여 작성되었습니다", "출처는 다음과 같습니다" 같은 말 쓰지 마라. 서두에 군더더기 없이 독자가 바로 얻을 이득으로 시작하라.
-2. **2026년 반영**: 현재 시점({current_date})을 기준으로 '올해', '최신' 정보를 작성하라.
-3. **구조**: 반드시 <h2>(파란 바 스타일)와 <h3>(밑줄 스타일)를 사용해 가독성을 높여라.
-4. **라벨**: 딱 1개만 선택하라. `label_indices` 필드에 숫자 하나만 넣어라.
-5. **SVG 3줄**: 'summary' 필드에 6글자 이내의 단어 딱 3개를 추출하라.
-6. **SEO 슬러그**: 연도 없이 키워드 중심의 영어 슬러그를 길게 생성하라 (예: travel-insurance-best-guide).
+[미션]: 위 데이터를 분석하여 {current_year}년 최신 기준으로 5,000자 이상의 전문가 SEO 포스팅을 작성하라.
+[필수 구성 및 태그]:
+1. **서론**: 호기심을 유발하는 짧고 강렬한 문장으로 시작하고 반드시 `<p class="intro">` 태그를 사용하라.
+2. **목차**: 서론 바로 다음에 올 수 있도록 `<nav>` 태그로 목차(TOC)를 생성하라. 내부 앵커 링크 포함.
+3. **본문**: <h2>(파란 바 스타일)와 <h3>(밑줄 스타일)를 체계적으로 사용하라.
+4. **요소**: 표(Table) 3개 이상, 리스트(UL/OL) 5개 이상 필수 포함.
+5. **AI 말투 제거**: "출처를 종합했다", "조언이다", "작성되었습니다" 같은 AI 면피용 문구 절대 금지. 사람이 직접 쓴 것처럼 정보를 바로 꽂아라.
+6. **2026년 고정**: 참고 데이터에 과거 연도가 있더라도 무시하고 {current_year}년 최신 정보라고 작성하라.
+7. **하단 섹션**: '더 알아보기' 섹션을 만들고 관련 키워드 4개 이상을 리스트로 작성하라.
+8. **데이터**: 'summary' 필드에 본문 핵심 키워드 5자 이내 3개를 담아라. 'slug' 필드에 영어 퍼머링크를 생성하라.
 
 [출력 포맷]: JSON (title, meta_desc, meta_keys, slug, summary, content, label_indices)
 """
@@ -149,38 +151,40 @@ def run_automation():
         data = generate_master_content()
         if not data: return
         
-        # 디자인 요소 삽입
+        # 디자인 요소 준비
         card_tag = create_summary_card_tag(data.get('summary', []), data['title'])
         ads_tag = '<div style="margin:35px 0;"><script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2303846706279700" crossorigin="anonymous"></script><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-2303846706279700" data-ad-slot="1632085406" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
         
         content = data['content']
-        insertion = card_tag + ads_tag
-        # TOC(nav) 뒤에 삽입하거나 맨 앞에 삽입
-        content = content.replace("</nav>", f"</nav>{insertion}") if "</nav>" in content else insertion + content
+        # 🌟 구조 재배치: 서론 -> 목차 -> 요약카드 -> 애드센스 -> 본문
+        insertion = f"{card_tag}{ads_tag}"
+        if "</nav>" in content:
+            content = content.replace("</nav>", f"</nav>{insertion}")
+        else:
+            content = insertion + content
 
-        # 폰트 18px + H2/H3 스타일링 강화
         final_html = f"""
+        <meta name="description" content="{data['meta_desc']}">
+        <meta name="keywords" content="{data['meta_keys']}">
         <style>
             .entry-content {{ font-size: 18px; line-height: 2.0; color: #333; font-family: 'Malgun Gothic', sans-serif; }}
-            .entry-content h2 {{ 
-                font-size: 28px; color: #2c3e50; border-left: 10px solid #3498db; 
-                padding: 10px 15px; margin: 45px 0 25px; background: #f9f9f9; 
-            }}
-            .entry-content h3 {{ 
-                font-size: 23px; color: #2980b9; border-bottom: 2px solid #3498db; 
-                padding-bottom: 8px; margin: 35px 0 20px; 
-            }}
+            .entry-content h2 {{ font-size: 28px; color: #2c3e50; border-left: 10px solid #3498db; padding: 10px 15px; margin: 45px 0 25px; background: #f9f9f9; }}
+            .entry-content h3 {{ font-size: 23px; color: #2980b9; border-bottom: 2px solid #3498db; padding-bottom: 8px; margin: 35px 0 20px; }}
             .entry-content p {{ margin-bottom: 25px; }}
-            .entry-content b {{ color: #e74c3c; }}
             .entry-content table {{ width: 100%; border-collapse: collapse; margin: 30px 0; }}
             .entry-content th {{ background: #3498db; color: white; padding: 12px; }}
             .entry-content td {{ border: 1px solid #ddd; padding: 12px; text-align: center; }}
+            .entry-content .intro {{ background: #f0f7ff; padding: 25px; border-radius: 15px; border-left: 5px solid #3498db; margin-bottom: 40px; font-weight: bold; font-size: 20px; }}
+            .entry-content nav {{ background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 30px; }}
+            .entry-content nav ul {{ list-style: none; padding-left: 0; }}
+            .entry-content nav li {{ margin-bottom: 10px; }}
+            .entry-content nav a {{ color: #2c3e50; text-decoration: none; font-weight: bold; }}
         </style>
         <div class="entry-content">{content}</div>
         """
 
-        # 라벨 강제 제한 (1개만)
-        raw_idx = data.get('label_indices', [0])[0] # 첫 번째 것만 취함
+        # 라벨 및 인증 처리
+        raw_idx = data.get('label_indices', [0])[0]
         final_label = [LABEL_OPTIONS[int(raw_idx) % len(LABEL_OPTIONS)]]
 
         with open('token.json', 'rb') as t:
@@ -189,19 +193,15 @@ def run_automation():
         
         service = build('blogger', 'v3', credentials=creds)
         
-        # 포스팅 실행 (슬러그 반영 시도)
         print(f"🚀 [4/5] 업로드 중: {data['title']}")
         service.posts().insert(blogId=BLOG_ID, body={
-            "title": data['title'], 
-            "content": final_html, 
-            "labels": final_label,
+            "title": data['title'], "content": final_html, "labels": final_label,
             "customMetaData": data.get('meta_desc', '')
         }, isDraft=False).execute()
         
         print(f"✨ [5/5] 최종 성공: {data['title']}")
 
-    except Exception as e: 
-        print(f"❌ 에러 발생: {e}")
+    except Exception as e: print(f"❌ 에러 발생: {e}")
 
 if __name__ == "__main__":
     run_automation()
