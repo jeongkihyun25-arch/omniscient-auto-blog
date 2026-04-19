@@ -134,13 +134,13 @@ def generate_master_content():
 3. **AI 말투 삭제**: "출처를 종합했다", "작성되었습니다", "알아보겠습니다" 같은 기계적인 멘트 금지.
 4. **서론 및 목차(앵커)**: 서론은 호기심을 유발하는 문장으로 `<p class="intro">` 태그 안에 작성하라. 서론 바로 밑에 `<nav>` 태그로 목차를 만들고, `<a href="#sec1">` 형태의 앵커 링크와 `<h2 id="sec1">` 형태의 본문 소제목 ID를 일치시켜 클릭 시 스크롤 이동하게 하라.
 5. **작동하는 실제 링크 분류 적용 (최소 8개)**: 임의로 만든 가짜 링크나 'googleusercontent' 같은 잘못된 형식은 절대 금지!
-   - **장소 (식당, 숙소, 관광지 등)**: 구글 지도 검색 링크 사용 -> <a href="https://www.google.com/maps/search/?api=1&query=정확한장소명" target="_blank">
+   - **장소 (식당, 숙소, 관광지 등)**: 구글 지도 검색 링크 사용 -> <a href="https://www.google.com/maps/search/장소명7" target="_blank">
    - **정보/교통 (교통편, 예매, 팁 등)**: 구글 일반 검색 링크 사용 -> <a href="https://www.google.com/search?q=정확한검색어" target="_blank">
 6. **SVG 3줄 요약**: 'summary' 필드에 단어를 한 글자씩 쪼개지 마라! 반드시 **[이모지 1개 + 띄어쓰기 포함 6글자 이하의 명사형 단어]** 조합으로 말이 되는 딱 3개의 구문을 배열로 반환하라. (예: ["🛂 여권 준비물", "✈️ 모바일 티켓", "🎒 기내 수하물"])
 7. **구조화 요소**: 표(Table) 3개 이상, 리스트(UL/OL) 5개 이상 필수 포함.
 8. **하단 '더 알아보기' 섹션**: 문서 맨 아래에 관련 키워드로 구글 검색 새창 링크 4개 이상을 리스트로 작성하라.
 9. **참고 출처 추적**: 네가 선택해서 집중 모방한 1개의 블로그 주소를 'used_references' 배열에 딱 1개만 반환하라.
-10. **슬러그**: 'slug' 필드에 연도가 없는 짧은 영문 퍼머링크를 생성하라.
+10. **슬러그**: 'slug' 필드에 연도가 없는 짧은 영문 퍼머링크를 생성하라. (예: travel-tips-korea)
 11. **내용 중복 방지 (독창성)**: 1년 내내 매일 글이 발행되어도 소재가 고갈되거나 겹치지 않도록, 누구나 아는 뻔한 내용은 과감히 생략하고 아주 구체적이고 희소성 있는 '니치(Niche)'한 정보와 꿀팁 위주로 글을 구성하라.
 
 [출력 포맷]: JSON (title, meta_desc, meta_keys, slug, summary, content, label_indices, used_references)
@@ -150,7 +150,7 @@ def generate_master_content():
         return json.loads(response.text)
     except: return None
 
-# ==================== [6] 실행 및 블로거 업로드 (애드센스 3개 + 완벽 CSS) ====================
+# ==================== [6] 실행 및 블로거 업로드 (애드센스 3개 + 완벽 CSS + 2단계 업로드) ====================
 def run_automation():
     print("🚀 [2/5] 프로세스 시작...")
     try:
@@ -240,7 +240,7 @@ def run_automation():
         if not final_labels: final_labels = [LABEL_OPTIONS[0]]
         final_labels = list(set(final_labels))[:1]
 
-        # 블로그 업로드
+        # 블로그 API 인증
         with open('token.json', 'rb') as t:
             creds = pickle.load(t)
             if creds and creds.expired and creds.refresh_token:
@@ -248,11 +248,22 @@ def run_automation():
         
         service = build('blogger', 'v3', credentials=creds)
         
-        print(f"🚀 [4/5] 블로그 업로드 중: {data['title']}")
-        service.posts().insert(blogId=BLOG_ID, body={
+        # 🌟 1단계: 영어 슬러그 확보용 초안 생성 (퍼머링크 고정)
+        print(f"🚀 [4/5] 1단계: 영어 슬러그 확보용 초안 생성 ({data.get('slug', 'auto-post')})")
+        slug_text = data.get('slug', 'auto-post')
+        if not slug_text.strip(): slug_text = "auto-post"
+        
+        temp_post = service.posts().insert(blogId=BLOG_ID, body={
+            "title": slug_text, 
+            "content": "가독성을 위해 본문이 조립 중입니다...",
+            "labels": final_labels
+        }, isDraft=True).execute()
+
+        # 🌟 2단계: 최종 원고(한글 제목)로 내용 덮어쓰기 및 발행
+        print(f"🚀 [4/5] 2단계: 최종 원고 업데이트 및 발행 ({data['title']})")
+        service.posts().patch(blogId=BLOG_ID, postId=temp_post['id'], body={
             "title": data['title'], 
-            "content": final_html, 
-            "labels": final_labels,
+            "content": final_html,
             "customMetaData": data.get('meta_desc', '')
         }, isDraft=False).execute()
         
