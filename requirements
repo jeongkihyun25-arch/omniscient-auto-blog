@@ -1,6 +1,6 @@
-requests
-beautifulsoup4
+google-generativeai
 google-api-python-client
-google-auth
+google-auth-httplib2
 google-auth-oauthlib
-lxml
+feedparser
+requests
