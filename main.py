@@ -1,129 +1,4 @@
-import os
-import pickle
-import time
-import json
-import base64
-import requests
-import re
-import warnings
-import random
-import urllib.parse
-from datetime import datetime
-import google.generativeai as genai
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
-
-warnings.filterwarnings("ignore")
-
-# ==================== [1] 기본 설정 ====================
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-BLOG_ID = "6254424106586242042"
-QUEUE_FILE = "keywords_queue.txt"
-LABEL_OPTIONS = ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"]
-
-# ==================== [2] 최고 모델 선택 ====================
-def get_best_model():
-    print("🔍 [1/5] 최고 모델 탐색 중...")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
-    try:
-        res = requests.get(url, timeout=15).json()
-        available = [m['name'].replace('models/', '') for m in res.get('models', [])
-                     if 'generateContent' in m.get('supportedGenerationMethods', [])]
-        priorities = ["gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.0-flash"]
-        for p in priorities:
-            for m in available:
-                if p in m: return m
-        return available[0] if available else "gemini-2.0-flash"
-    except: return "gemini-2.0-flash"
-
-# ==================== [3] 네이버 수집 (🔥 테마별 전문성 축적 + 1+4 본문 추출) ====================
-def get_naver_target_data():
-    now = datetime.now()
-    m = [now.month, (now.month % 12) + 1, ((now.month + 1) % 12) + 1]
-    
-    # 🔥 전문성(Authority)을 위해 테마별로 묶어서 순차적으로 발행!
-    BASE_KEYWORDS = [
-        # 테마 1: 공항 및 출국 (전문성 집중)
-        "인천공항 주차", "공항 라운지", "스마트패스", "공항 리무진", "수하물 규정", "기내 반입", "여권 발급", "항공권 특가",
-        # 테마 2: 일본 여행 특화
-        "비지트 재팬", "돈키호테", "일본 환전 꿀팁", "트래블월렛", "트래블로그", "일본 esim 설치", "일본 유심 추천",
-        # 테마 3: 해외여행 필수 준비 및 안전
-        "해외여행 준비물", "여행자 보험", "비상약 리스트", "입국 심사", "세관 신고", "해외 로밍", "가족 여행",
-        # 테마 4: 숙박 및 현지 여행지 추천
-        "아고다 할인", "에어비앤비", "가성비 숙소", "면세점 쇼핑", "현지 맛집", f"{m[0]}월 여행지", f"{m[1]}월 여행지"
-    ]
-
-    if not os.path.exists(QUEUE_FILE) or os.stat(QUEUE_FILE).st_size == 0:
-        with open(QUEUE_FILE, "w", encoding="utf-8") as f: f.write("\n".join(BASE_KEYWORDS))
-
-    with open(QUEUE_FILE, "r", encoding="utf-8") as f: lines = f.read().splitlines()
-    target_query = lines[0]
-    print(f"🎯 오늘의 키워드: {target_query}")
-    with open(QUEUE_FILE, "w", encoding="utf-8") as f: f.write("\n".join(lines[1:]))
-
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    
-    valid_links = []
-    scraped_data = ""
-    target_blog_url = ""
-    links_info_selected = ""
-
-    try:
-        url = f"https://search.naver.com/search.naver?ssc=tab.blog.all&query={urllib.parse.quote(target_query)}"
-        driver.get(url)
-        time.sleep(5)
-        
-        all_links = driver.find_elements(By.TAG_NAME, "a")
-        seen_urls = set()
-        
-        for link in all_links:
-            href = link.get_attribute("href")
-            title = link.text.strip()
-            
-            if href and "blog.naver.com" in href and len(title) > 5:
-                clean_url = href.split('?')[0].rstrip('/')
-                if re.search(r'/\d+$', clean_url):
-                    if clean_url not in seen_urls:
-                        seen_urls.add(clean_url)
-                        valid_links.append({"title": title, "url": clean_url})
-            if len(valid_links) >= 15: break
-
-        if len(valid_links) > 5:
-            selected_links = [valid_links[0]] + random.sample(valid_links[1:], 4)
-        else:
-            selected_links = valid_links
-
-        if selected_links:
-            target_blog_url = selected_links[0]['url'] 
-            print(f"\n🔍 [본문 추출 시작: 1위 고정 + 서브 랜덤 4개]")
-            
-            for i, item in enumerate(selected_links):
-                mobile_url = item['url'].replace("blog.naver.com", "m.blog.naver.com")
-                driver.get(mobile_url)
-                time.sleep(2)
-                
-                try: text = driver.find_element(By.CSS_SELECTOR, ".se-main-container").text
-                except:
-                    try: text = driver.find_element(By.TAG_NAME, "body").text
-                    except: text = "수집 실패"
-
-                clean_text = text.replace('\n', ' ')[:1500]
-                role = "메인 타겟(뼈대)" if i == 0 else "서브 타겟(후기 추출용)"
-                scraped_data += f"--- [{role}] {item['title']} ---\n{clean_text}...\n\n"
-                links_info_selected += f"[{i+1}] {role} | {item['title']} \n"
-                print(f"  👉 [{role}] 텍스트 확보 완료!")
-
-    finally: driver.quit()
-    return target_query, links_info_selected, target_blog_url, scraped_data
+ㅊ
 
 # ==================== [4] 유동적 SVG 요약 카드 ====================
 def create_summary_card_tag(summary_list, title):
@@ -155,32 +30,38 @@ def generate_master_content():
 [🔥 집중 분석 타겟 (실제 1위 블로그 뼈대 + 서브 블로그 4개 후기 합본)]: 
 {scraped_data}
 
-[미션]: 위 [집중 분석 타겟]의 텍스트를 해부하여 5,000자 이상의 초고품질 딥다이브 포스팅으로 작성하라. 여행 글은 단순한 '정보 나열'이 아니라, 검색한 사람이 '결정'하게 만들고 '손해를 막아주는' 콘텐츠여야 한다.
+[미션]: 위 [집중 분석 타겟]의 텍스트를 해부하여 억지로 늘린 내용 없이 '밀도 높은' 초고품질 딥다이브 포스팅으로 작성하라. 여행 글은 단순한 정보 나열이 아니라, 검색한 사람이 '결정'하게 만들고 '손해를 막아주는' 콘텐츠여야 한다.
 
 [🔥 상위 노출 & 체류시간 폭발 카피라이팅 지시사항 - 절대 엄수]:
-1. **제목은 무조건 '손해/숫자/상황' 조합형**: "이거 안 하면 요금 3배 나옵니다", "늦은 밤 도착하면 택시비 2배 (이렇게 해결)", "공항에서 30분 줄이는 핵심 1가지" 처럼 구체적 수치와 손실회피 심리를 섞어 자극적으로 지어라.
-2. **🔥 반드시 지켜야 할 8단계 글 구조 (CTR + 체류시간 핵심)**:
-   ① 문제 제기 (첫 3줄 공감 유도. 예: "공항에서 시간 버린 적 있죠?")
-   ② 손해 강조 (돈/시간 낭비를 강조. 예: "이거 모르고 가면 하루 2만원 그냥 나갑니다")
-   ③ 해결책 즉시 제시 (빙빙 돌리지 말고 바로 정답부터 던져라)
-   ④ 핵심 방법 3~5개 (단순 나열 절대 금지! "왜 해야 좋은지" 구체적 이유 필수)
-   ⑤ ⚡ 상황별 사용법 (초보 vs 고수, 가족 vs 혼자 등 타겟을 나눠서 차별화된 팁 제공)
-   ⑥ ❌ 비추천 대상 (신뢰도 폭발용. "이런 분들은 굳이 필요 없어요" 솔직하게 작성)
-   ⑦ 👍 실제 느낌 후기 (가공된 타겟 소스 활용. 2~3줄로 짧고 강렬하게. 예: "이거 쓰고 위탁 안 맡겼더니 30분 절약됨")
-   ⑧ 한줄 결론 (기억에 팍 남는 멘트 하나 던지기)
-3. **🔥 무조건 넣어야 하는 5가지 필수 요소**:
-   - 숫자 (시간/돈/% 정확하게 명시)
-   - 비교 (하기 전 vs 후)
-   - 실수 포인트 (사람들이 흔히 놓치는 것)
-   - 상황 (언제/누구에게 필요한지)
-   - 감정 (짜증/손해/편안함 등 실제 감정 묘사)
-4. **하단 스팸 링크 금지 & 본문 내 자연스러운 링크 삽입**: 문서 맨 밑에 '더 알아보기' 같은 링크 리스트를 만들지 마라! 대신 본문을 작성하면서 문맥상 꼭 필요한 중요 정보나 장소에 자연스럽게 구글 링크를 걸어라 (최소 4~6개 필수, 모두 target="_blank").
-   - 장소: <a href="https://www.google.com/maps/search/?api=1&query=장소명+띄어쓰기+대체" target="_blank"> (띄어쓰기는 무조건 '+'로 변경!)
-   - 정보: <a href="https://www.google.com/search?q=정확한+검색어" target="_blank">
-5. **광고/협찬 원천 차단 (브랜드 세탁)**: 원본 글에 특정 브랜드(캐리어, 유심 업체 등) 홍보가 있다면 싹 지우고, 객관적인 '선택 기준'이나 '방법론'으로 100% 필터링하라.
+1. **검색 의도에 맞는 제목 변주 (CTR 최적화)**: 무조건 자극적인 제목만 쓰지 마라. 키워드에 따라 70%는 '손해/숫자/상황'을 결합한 자극형(예: "이거 안 하면 요금 3배 나옵니다")으로, 30%는 신뢰감을 주는 '정보/해결형'(예: "인천공항 스마트패스 등록부터 사용까지 총정리")으로 상황에 맞게 유연하게 적용하라. 끝에 "(실제 후기)" 등을 붙여라.
+2. **🔥 검색 의도(타입)별 맞춤형 글 구조 (순위 상승의 핵심)**: 키워드를 분석하여 아래 3가지 타입 중 하나로 구조를 변형하라.
+   - **돈/비용형 (예: eSIM, 항공권)**: '문제 제기 -> 손해 강조 -> 해결책 -> 비교' 위주로 작성.
+   - **방법/절차형 (예: 스마트패스, 공항 이용)**: 독자가 그대로 따라 할 수 있는 '순서 설명(Step-by-step)' 파트를 반드시 추가.
+   - **추천형 (예: 맛집, 숙소)**: 단순 나열 금지. '상황별 추천(가족 vs 혼자)'과 명확한 '대안 비교' 위주로 작성.
+3. **🔥 공통 필수 구조 및 5가지 요소**:
+   - 도입부는 공감 유도형 '문제 제기'로 시작 (첫 3줄 이내).
+   - "이유 + 상황 + 결과"가 포함된 사람 냄새나는 생생한 찐 후기 3줄 추가. (예: "실제로 이 방법 쓰고 위탁 안 맡겼더니 30분 절약됨")
+   - 숫자(시간/돈), 비교(전/후), 실수 포인트, 상황, 감정 묘사를 본문 곳곳에 녹여라.
+4. **외부 링크 최적화 (2~3개만 엄선)**: 외부 링크 과다는 SEO 점수를 깎는다. 문맥상 꼭 필요한 구글 맵스 장소 링크나 구글 검색 링크만 딱 2~3개로 줄여서 자연스럽게 배치하라. 모두 target="_blank" 적용.
+   - 장소: <a href="https://www.google.com/maps/search/?api=1&query=장소명+띄어쓰기+대체" target="_blank"> (띄어쓰기는 '+' 기호로 대체)
+5. **광고/협찬 원천 차단 (브랜드 세탁)**: 원본 글에 특정 브랜드 홍보가 있다면 싹 지우고, 객관적인 '선택 기준'이나 '방법론'으로 필터링하라.
 6. **시간적 표현 절대 금지**: "2026년", "최신", "올해", "현재", "최근" 일절 금지.
 7. **AI 멘트 원천 차단**: "출처를 종합했다", "알아보겠습니다" 금지.
-8. **구조화 요소**: 서론은 `<p class="intro">` 사용. 목차 `<nav>` 및 `<h2 id="...">` 앵커 연동. 표 3개, 리스트 5개 이상.
+8. **🔥 구조화 및 HTML 양식 강제 적용 (패턴화 방지!)**:
+   아래의 HTML '구조'를 지키되, AI 템플릿처럼 보이지 않도록 매번 변형해라. 특히 목차의 href와 본문 h2의 id는 'sec1' 같은 고정 단어 대신, **해당 문단의 핵심 키워드를 영문으로 번역한 고유 단어**(예: id="esim-cost", id="smartpass-register")를 매번 다르게 생성하여 스크롤 앵커를 연결하라!
+   ```html
+   <p class="intro">[현재 키워드에 맞춰 독자의 뼈를 때리는 공감/문제제기 1~2줄]</p>
+   <nav>
+     <ul>
+       <li><a href="#[매번_바뀌는_영문ID_1]">1. [시선을 끄는 소제목]</a></li>
+       <li><a href="#[매번_바뀌는_영문ID_2]">2. [핵심 꿀팁 소제목]</a></li>
+     </ul>
+   </nav>
+   <h2 id="[매번_바뀌는_영문ID_1]">1. [시선을 끄는 소제목]</h2>
+   <p>내용...</p>
+   <h2 id="[매번_바뀌는_영문ID_2]">2. [핵심 꿀팁 소제목]</h2>
+   <p>내용...</p>
+   ```
 9. **SVG 3줄 요약**: 'summary' 필드에 **[이모지 1개 + 띄어쓰기 포함 6글자 이하의 명사형 단어]** 3개 배열 반환.
 10. **슬러그(URL)**: 한글 제목에서 핵심 키워드 2~3개만 뽑아 짧은 영어 단어 조합으로 생성 (예: flight-ticket-hacks).
 11. **🔥 카테고리(라벨) 강제 지정**: 너가 작성한 글의 주제와 가장 완벽하게 일치하는 카테고리를 다음 리스트 중에서 딱 1개만 골라 정확한 텍스트로 반환하라. -> ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"]
@@ -243,9 +124,13 @@ def run_automation():
         card_tag = create_summary_card_tag(data.get('summary', []), data['title'])
         content = data['content']
 
+        # 🔥 서론 -> 목차 -> 요약카드(SVG) -> 애드센스 1 -> 본문 (순서 보장 로직)
         top_insertion = f"{card_tag}{ads_code}"
-        if "</nav>" in content:
-            content = content.replace("</nav>", f"</nav>{top_insertion}")
+        
+        if re.search(r'</nav>', content, re.IGNORECASE):
+            content = re.sub(r'(</nav>)', f'\\1{top_insertion}', content, flags=re.IGNORECASE, count=1)
+        elif re.search(r'</p>', content, re.IGNORECASE):
+            content = re.sub(r'(</p>)', f'\\1{top_insertion}', content, flags=re.IGNORECASE, count=1)
         else:
             content = top_insertion + content
 
@@ -283,7 +168,6 @@ def run_automation():
         # 🔥 제미나이가 골라준 카테고리 적용 로직
         chosen_category = data.get('category', '').strip()
         if chosen_category not in LABEL_OPTIONS:
-            # 제미나이가 이상한 걸 골랐거나 오류를 냈을 경우 기본값: "여행 준비 팁"
             chosen_category = "여행 준비 팁" 
         
         final_labels = [chosen_category]
