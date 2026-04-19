@@ -12,6 +12,11 @@ from datetime import datetime
 import google.generativeai as genai
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
 
 warnings.filterwarnings("ignore")
 
@@ -21,15 +26,9 @@ BLOG_ID = "6254424106586242042"
 QUEUE_FILE = "keywords_queue.txt"
 LABEL_OPTIONS = ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"]
 
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
-
-# ==================== [2] 모델 선택 (기현님 코드 고대로) ====================
+# ==================== [2] 최고 모델 선택 ====================
 def get_best_model():
-    print("🔍 [1/5] 최고 모델 탐색 중...")
+    print("🔍 [1/5] 모델 탐색 중...")
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
     try:
         res = requests.get(url, timeout=15).json()
@@ -38,14 +37,11 @@ def get_best_model():
         priorities = ["gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.0-flash"]
         for p in priorities:
             for m in available:
-                if p in m:
-                    print(f"🎯 선택 모델: {m}")
-                    return m
+                if p in m: return m
         return available[0] if available else "gemini-2.0-flash"
-    except:
-        return "gemini-2.0-flash"
+    except: return "gemini-2.0-flash"
 
-# ==================== [3] 네이버 상위 10개 정밀 수집 (셔플 로직) ====================
+# ==================== [3] 네이버 정밀 수집 (셔플 큐 적용) ====================
 def get_naver_target_data():
     now = datetime.now()
     m = [now.month, (now.month % 12) + 1, ((now.month + 1) % 12) + 1]
@@ -86,13 +82,31 @@ def get_naver_target_data():
                 clean_url = href.split('?')[0].rstrip('/')
                 if re.search(r'/\d+$', clean_url):
                     count += 1
-                    links_info += f"[{count}] 제목: {title} | URL: {clean_url}\n"
+                    links_info += f"[{count}] {title} ({clean_url})\n"
             if count >= 10: break
-    finally:
-        driver.quit()
+    finally: driver.quit()
     return target_query, links_info
 
-# ==================== [4] 원고 생성 (5,000자 + 제목/키워드 모방) ====================
+# ==================== [4] 유동적 SVG 요약 카드 (고정 텍스트 제거) ====================
+def create_summary_card_tag(summary_list, title):
+    # 제미나이가 준 키워드 중 6자 이내로 3개 추출
+    safe_list = [str(s).strip()[:6] for s in summary_list if s][:3]
+    while len(safe_list) < 3: safe_list.append("") 
+    l1, l2, l3 = safe_list
+
+    svg_code = f"""
+    <svg width="600" height="230" xmlns="http://www.w3.org/2000/svg">
+      <rect width="600" height="230" fill="#FFF9C4" rx="15"/>
+      <text x="50%" y="65" font-family="Arial" font-weight="bold" font-size="28" text-anchor="middle" fill="#333">{l1}</text>
+      <text x="50%" y="120" font-family="Arial" font-weight="bold" font-size="26" text-anchor="middle" fill="#333">{l2}</text>
+      <text x="50%" y="175" font-family="Arial" font-weight="bold" font-size="24" text-anchor="middle" fill="#333">{l3}</text>
+    </svg>
+    """
+    b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
+    data_uri = f"data:image/svg+xml;base64,{b64_svg}"
+    return f'<div style="text-align:center; margin:30px 0;"><img src="{data_uri}" style="max-width:100%; border-radius:10px;" alt="{title}"/></div>'
+
+# ==================== [5] 원고 생성 로직 ====================
 def generate_master_content():
     keyword, reference_blogs = get_naver_target_data()
     best_model = get_best_model()
@@ -100,47 +114,51 @@ def generate_master_content():
     model = genai.GenerativeModel(best_model)
 
     prompt = f"""
-[현재 날짜]: {datetime.now().strftime("%Y-%m-%d")}
-[메인 키워드]: {keyword}
-[참고할 네이버 상위 10개 리스트]:
-{reference_blogs}
-
-[미션]: 위 10개 블로그 중 가장 잘 쓴 글 1개를 골라 내용을 분석하고, 5,000자 이상의 프리미엄 원고를 작성해.
-
-[작성 규칙]:
-1. **제목(Title) 모방**: 상위권 블로그들의 제목 스타일(키워드 배치, 문구)을 참고하여 가장 클릭률이 높을 법한 비슷한 느낌의 제목을 지어.
-2. **내용 모방 및 확장**: 참고 글의 핵심 정보를 뼈대로 삼되, 네가 아는 정보를 듬뿍 추가해 훨씬 풍성하게 써. (출처 절대 언급 금지)
-3. **퍼머링크(Slug)**: 키워드가 포함된 영어 슬러그를 생성해.
-4. **라벨(Label)**: 제공된 옵션 중 가장 적절한 인덱스를 2개 골라.
-5. HTML 형식 유지 (intro 태그, 새창 링크 8개, 표 2개, 리스트 5개)
-
-[출력 포맷]: JSON
-{{
-  "title": "모방한 임팩트 제목",
-  "meta_desc": "SEO 설명 (150자)",
-  "meta_keys": "{keyword}, 여행 팁",
-  "slug": "url-slug-with-keyword",
-  "summary": ["키워드1", "키워드2", "키워드3"],
-  "content": "HTML 본문",
-  "label_indices": [인덱스1, 인덱스2]
-}}
+[주제]: {keyword}
+[참고]: {reference_blogs}
+[미션]: 위 블로그 중 가장 우수한 글을 벤치마킹하여 5,000자 이상의 원고를 작성해.
+[필수]: 
+1. 제목은 참고 글들과 비슷하게 클릭률 높게 작성.
+2. 'summary' 필드에 본문 핵심 키워드 3개(각 6자 이내) 필수 포함.
+3. 출처 언급 절대 금지, 직접 경험한 듯한 말투.
+4. HTML 본문에 새창 링크 8개, 표 2개, 리스트 5개 포함.
+[출력 포맷]: JSON (title, meta_desc, meta_keys, slug, summary, content, label_indices)
 """
     try:
-        response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"}, request_options={"timeout": 600})
+        response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
         return json.loads(response.text)
-    except Exception as e:
-        print(f"⚠️ 생성 실패: {e}")
-        return None
+    except: return None
 
-# ==================== [5] 실행 및 업로드 ====================
+# ==================== [6] 실행 및 블로거 업로드 ====================
 def run_automation():
-    data = generate_master_content()
-    if not data: return
+    try:
+        data = generate_master_content()
+        if not data: return
+        
+        # 카드 및 애드센스 삽입
+        card_tag = create_summary_card_tag(data.get('summary'), data['title'])
+        ads_tag = '<div style="margin:25px 0;"><script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2303846706279700" crossorigin="anonymous"></script><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-2303846706279700" data-ad-slot="1632085406" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
+        
+        content = data['content']
+        insertion = card_tag + ads_tag
+        content = content.replace("</nav>", f"</nav>{insertion}") if "</nav>" in content else insertion + content
 
-    # (기존 기현님 코드의 이미지 태그 및 광고 삽입 로직 실행)
-    content = data['content']
-    # ... (생략된 기존 블로그 업로드 코드: creds 로드 및 service.posts().insert 실행) ...
-    print(f"🚀 업로드 완료: {data['title']}")
+        final_html = f"""<style>
+            table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+            th, td {{ border: 1px solid #ddd; padding: 12px; }}
+            .intro {{ font-weight: bold; border-left: 5px solid #3498db; padding-left: 15px; margin-bottom: 20px; }}
+        </style><div class="entry-content">{content}</div>"""
 
-if __name__ == "__main__":
-    run_automation()
+        with open('token.json', 'rb') as t:
+            creds = pickle.load(t)
+            if creds.expired: creds.refresh(Request())
+        
+        service = build('blogger', 'v3', credentials=creds)
+        service.posts().insert(blogId=BLOG_ID, body={
+            "title": data['title'], "content": final_html,
+            "labels": [LABEL_OPTIONS[i] for i in data.get('label_indices', [0])]
+        }, isDraft=False).execute()
+        print(f"✨ 성공: {data['title']}")
+    except Exception as e: print(f"❌ 에러: {e}")
+
+if __name__ == "__main__": run_automation()
