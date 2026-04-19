@@ -144,7 +144,7 @@ def create_summary_card_tag(summary_list, title):
     data_uri = f"data:image/svg+xml;base64,{b64_svg}"
     return f'<div style="text-align:center; margin:40px 0;"><img src="{data_uri}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{title} 핵심 요약 카드"/></div>'
 
-# ==================== [5] 원고 생성 (🔥 장기 SEO & 저품질 방지 완벽 프롬프트) ====================
+# ==================== [5] 원고 생성 (🔥 AI 오류 방어 및 3회 재시도 로직) ====================
 def generate_master_content():
     keyword, reference_blogs, target_blog_url, scraped_data = get_naver_target_data()
     best_model = get_best_model()
@@ -164,24 +164,40 @@ def generate_master_content():
 3. **클릭을 유발하는 자극형 제목**: 사전적 제목 금지. "이거 안 하면 손해", "안 하면 줄 40분 더 서는 이유" 처럼 구체적 상황과 손실 회피 심리를 자극하라. 끝에 "(실제 후기)" 혹은 "(비교 꿀팁)"을 붙여라.
 4. **독자의 고민을 끝내는 '비교 구조' 필수**: A vs B (예: 스마트패스 vs 일반줄, 로밍 vs 이심, 택시 vs 리무진 등)를 자연스럽게 찾아내어, 시간 차이와 상황별 추천을 확실하게 때려주는 파트를 만들어라.
 5. **정예 링크만 (4~6개 필수, 스팸 방지)**: 무지성으로 링크를 남발하지 마라. 독자에게 진짜 필요한 핵심 링크만 4~6개 자연스럽게 배치하라. 모두 target="_blank".
-   - 장소: <a href="https://www.google.com/maps/search/장소명" target="_blank">
-   - 정보: <a href="https://www.google.com/search?q=정확한검색어" target="_blank">
+   - **장소 (식당, 숙소, 관광지 등)**: 구글 지도 공식 검색 링크 사용. 띄어쓰기가 있다면 반드시 '+' 기호로 연결할 것! -> <a href="https://www.google.com/maps/search/?api=1&query=장소명+띄어쓰기+대체" target="_blank">장소명</a>
+   - **일반 정보 (교통편, 팁 등)**: 구글 일반 검색 링크 사용. 띄어쓰기는 '+' 기호로 연결! -> <a href="https://www.google.com/search?q=정확한+검색어" target="_blank">정보 텍스트</a>
 6. **시간적 표현 절대 금지**: "2026년", "최신", "올해", "현재", "최근" 등 유행 타는 단어 일절 금지.
 7. **AI 멘트 원천 차단**: "출처를 종합했다", "작성되었습니다", "알아보겠습니다" 금지.
-8. **구조화 요소**: 서론은 `<p class="intro">` 사용. 서론 밑에 `<nav>` 목차 및 `<h2 id="...">` 앵커 연동. 표 3개, 리스트 5개 이상. 하단에 구글 링크 4개 추천 리스트.
+8. **구조화 요소**: 서론은 `<p class="intro">` 사용. 서론 밑에 `<nav>` 목차 및 `<h2 id="...">` 앵커 연동. 표 3개, 리스트 5개 이상. 하단에 구글 일반검색 링크 4개 추천 리스트.
 9. **SVG 3줄 요약**: 'summary' 필드에 **[이모지 1개 + 띄어쓰기 포함 6글자 이하의 명사형 단어]** 3개 배열 반환.
 10. **슬러그(URL)**: 한글 제목에서 핵심 키워드 2~3개만 뽑아 짧은 영어 단어 조합으로 생성 (예: airport-lounge-tips).
 
 [출력 포맷]: JSON (title, meta_desc, meta_keys, slug, summary, content, label_indices)
 """
-    try:
-        response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
-        data = json.loads(response.text)
-        data['used_references'] = [target_blog_url]
-        return data
-    except Exception as e: 
-        print(f"제미나이 호출 오류: {e}")
-        return None
+    
+    max_retries = 3 # 최대 3번까지 다시 쓰게 만듦
+    for attempt in range(max_retries):
+        try:
+            print(f"✍️ [4/5] 제미나이 원고 작성 중... (시도 {attempt + 1}/{max_retries})")
+            response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
+            
+            # 텍스트 청소 (가끔 제미나이가 쓸데없는 마크다운을 붙이는 것 방지)
+            raw_text = response.text.strip()
+            if raw_text.startswith("```json"):
+                raw_text = raw_text.replace("```json", "", 1).strip()
+            if raw_text.endswith("```"):
+                raw_text = raw_text[:-3].strip()
+
+            data = json.loads(raw_text)
+            data['used_references'] = [target_blog_url]
+            return data
+            
+        except Exception as e: 
+            print(f"⚠️ 제미나이 JSON 문법 오류 발생 (재시도 준비 중...): {e}")
+            time.sleep(5) # 5초 숨 고르고 다시 시도
+            
+    print("❌ 제미나이가 3번 연속으로 헛소리를 했습니다. 원고 생성을 포기합니다.")
+    return None
 
 # ==================== [6] 실행 및 블로거 업로드 (퍼머링크 트릭 유지) ====================
 def run_automation():
