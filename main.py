@@ -572,11 +572,12 @@ def run_automation():
     <div class="entry-content">{content}</div>
     """
 
+    # 🔥 '여행 꿀팁'을 삭제하고, 6개 옵션 중 딱 1개만 선택하도록 수정
     chosen_category = data.get('category', '').strip()
     if chosen_category not in LABEL_OPTIONS: 
-        chosen_category = "여행 준비 팁" 
+        chosen_category = "여행 준비 팁" # 리스트에 없는 카테고리가 올 경우 기본값 적용
         
-    final_labels = [chosen_category, "여행 꿀팁"]
+    final_labels = [chosen_category] # 오직 선택된 1개의 라벨만 사용
     
     sleep_time = random.randint(180, 600)
     print(f"⏳ [System] 봇으로 걸리지 않기 위해 {sleep_time}초 대기 후 발행합니다...")
