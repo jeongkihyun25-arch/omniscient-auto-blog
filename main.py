@@ -39,31 +39,26 @@ CONTENT_FLOW = {
 }
 
 # ==================== [2] 핵심 유틸리티 ====================
-def get_best_model():
-    print("🔍 [1/6] 최고 모델 탐색 중...")
+def get_best_models():
+    """서버 과부하(503/429) 대비 최강의 모델 라인업 (Flash Lite 포함)"""
+    print("🔍 [1/6] 최고 모델 라인업 탐색 중...")
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
+    
+    # API 호출 실패 시 강제 할당할 기본 방어 리스트
+    default_models = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.5-pro"]
+    
     try:
-        res = requests.get(url, timeout=15).json()
+        res = requests.get(url, timeout=10).json()
         available = [m['name'].replace('models/', '') for m in res.get('models', [])
                      if 'generateContent' in m.get('supportedGenerationMethods', [])]
         
-        # 🔥 1.5 완전 배제! 2.5 및 2.0 최신 모델들만 우선순위 탐색
-        priorities = [
-            "gemini-2.5-flash",     # 1순위: 가장 빠르고 최신인 2.5 플래시
-            "gemini-2.0-pro-exp",   # 2순위: 2.0 프로
-            "gemini-2.0-flash-exp", # 3순위: 2.0 플래시 (실험버전)
-            "gemini-2.0-flash"      # 4순위: 2.0 기본 플래시
-        ]
+        # 🔥 1순위: 2.5 메인 / 2순위: 2.5 Lite(과부하 방어용) / 3순위: 2.0 메인
+        priorities = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.5-pro"]
+        best_models = [m for p in priorities for m in available if p in m]
         
-        for p in priorities:
-            for m in available:
-                if p in m: return m
-                
-        # 리스트에 없으면 사용 가능한 첫 번째 모델, 아예 없으면 2.5 플래시 기본값 반환
-        return available[0] if available else "gemini-2.5-flash"
-        
+        return best_models if best_models else default_models
     except: 
-        return "gemini-2.5-flash"
+        return default_models
 
 def prioritize_keywords(keywords):
     p = [k for k in keywords if any(x in k for x in PRIORITY_KEYWORDS)]
