@@ -292,7 +292,7 @@ def create_summary_card_tag(summary_list, alt_text):
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
     return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{alt_text}"/></div>'
 
-# ==================== [5] 원고 생성 ====================
+# ==================== [5] 원고 생성 (🔥 표, 내부/외부 링크 완벽 강제) ====================
 def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword, skeleton_title):
     models_to_try = get_best_models() 
 
@@ -325,17 +325,16 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
    - 마크다운(`##`, `**`) 절대 금지! 오직 순수 HTML 태그만 사용.
    - 본문 최상단에 반드시 `<nav><div class='toc-title'>목차</div><ul>...</ul></nav>` 형태의 목차를 작성하라.
    - 목차의 링크는 `<a href='#sec1'>` 형태로 앵커를 달고, 본문의 소제목 <h2> 태그에는 반드시 `<h2 id='sec1'>` 처럼 id를 일치시켜 클릭 시 정확히 이동하게 하라.
-2. **문맥형 내부링크 (자연 삽입 강제)**: 'Related:' 같은 단독 문단 금지. 문장 안에 자연스럽게 버튼 스타일을 적용해라. (예: <a href='URL' target='_blank' class='int-link'>꿀팁 알아보기 (🔗관련글)</a>)
+2. **문맥형 최신 내부링크 (무조건 3개 자연 삽입 강제)**: 
+   - 'Related:' 같은 단독 문단 절대 금지. 문장 안에 [내 블로그 다른 글 리스트] 중 3개를 골라 자연스럽게 버튼 스타일로 녹여라. 새창열기 필수.
+   - 예시: `이럴 때는 <a href='URL' target='_blank' class='int-link'>관련 꿀팁 (🔗관련글)</a>을 참고하면 좋습니다.`
 3. **중간 CTA (수익 전환 포인트)**: 본문 중간에 클릭을 유도하는 링크를 1개 이상 배치하라. (예: 👉 지금 가장 많이 쓰는 요금제 확인하기)
-
-4. **🔥무조건 접속되는 안전한 외부 링크 (3개 정도만)**: 
-   - 가짜 URL(없는 공식 홈페이지 등)로 연결되어 에러가 나는 것을 방지하기 위해, 모든 외부 링크의 URL은 **반드시 구글 검색 결과 URL** 또는 **구글 맵 검색 URL**만 사용하라.
-   - 장소 검색 예시: `<a href='https://www.google.com/maps/search/?api=1&query=검색할+장소명' target='_blank' class='ext-link'>장소 구글맵 확인 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
-   - 정보 검색 예시: `<a href='https://www.google.com/search?q=검색할+단어+조합' target='_blank' class='ext-link'>최신 정보 구글 검색하기 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
-
+4. **🔥무조건 접속되는 안전한 구글 외부 링크 (무조건 3개 강제)**: 
+   - 가짜 오류 URL 방지를 위해, 모든 외부 링크는 **반드시 구글 검색 결과 URL** 또는 **구글 맵 검색 URL**로만 정확히 3개 작성하라. 새창열기 필수.
+   - 예시: `<a href='https://www.google.com/search?q=관련+검색어' target='_blank' class='ext-link'>관련 최신정보 구글 검색하기 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
 5. **결정 버튼**: 본문 맨 마지막에 `<h2 id='conclusion'>결론: 그래서 뭐 쓰라고? (상황별 추천)</h2>` 태그를 사용해라.
-6. **표(Table)와 리스트(List) 절대 엄수**: 
-   - 비교/정리 정보는 반드시 `<div class='table-wrapper'><table><tr><th>...</th></tr><tr><td>...</td></tr></table></div>` 형태의 HTML 표로 작성하라.
+6. **표(Table)와 리스트(List) 절대 엄수 (비교 시 무조건 표 사용)**: 
+   - 제품 비교나 장단점 설명 시 절대 줄글로 쓰지 말고, 반드시 `<div class='table-wrapper'><table><tr><th>...</th></tr><tr><td>...</td></tr></table></div>` 형태의 완벽한 HTML 표로 작성하라. 
    - 텍스트 나열은 `<p>` 대신 `<ul><li>...</li></ul>`를 적극 활용해 가독성을 높여라.
 7. **SVG 길이**: JSON의 `summary` 단어들은 무조건 6글자 이하로 3개 작성.
 
