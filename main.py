@@ -132,7 +132,7 @@ def create_map_embed(location):
 def insert_html_at_pos(html_content, insert_str, pos):
     return html_content[:pos] + insert_str + html_content[pos:]
 
-# ==================== [3] 네이버 수집 (🔥 기존 완벽한 로직 100% 유지) ====================
+# ==================== [3] 네이버 수집 ====================
 def get_naver_target_data():
     now = datetime.now()
     COUNTRY_GROUPS = [
@@ -253,9 +253,8 @@ def get_naver_target_data():
     finally: driver.quit()
     return target_query, target_blog_url, scraped_data, title_guide, related_keyword, skeleton_title
 
-# ==================== [4] 유동적 SVG 요약 카드 (🔥 6글자 강제 커팅으로 깨짐 완벽 방지) ====================
+# ==================== [4] 유동적 SVG 요약 카드 ====================
 def create_summary_card_tag(summary_list, title):
-    # 🔥 파이썬 단에서 무조건 6글자로 강제 커팅하여 세로 깨짐 완벽 차단
     safe_list = [str(s).strip()[:6] for s in summary_list if s][:3]
     while len(safe_list) < 3: safe_list.append("") 
     svg_code = f"""
@@ -269,9 +268,8 @@ def create_summary_card_tag(summary_list, title):
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
     return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{title} 핵심 요약"/></div>'
 
-# ==================== [5] 원고 생성 (🔥 문맥 링크, 지능형 장소 반환, 외부링크 강제) ====================
+# ==================== [5] 원고 생성 (🔥 마크다운 방어 & 순수 HTML 강제) ====================
 def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword, skeleton_title):
-    # 1. 모델 리스트를 먼저 확보합니다. (복수형 s 확인 완료)
     models_to_try = get_best_models() 
 
     personas = ["가성비 헌터 블로거", "효율 극대화 프로 출장러", "디테일 끝판왕 J형 여행가"]
@@ -293,39 +291,32 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 
 [미션]: 독자가 즉시 '결정'을 하도록 유도하는, 4,000자~6,000자 분량의 초고밀도 전환형 포스팅을 작성하라.
 
-[🔥 핵심 강제 지시사항 - 에러 방지 및 신뢰도 폭발]:
-1. **문맥형 내부링크 (매우 중요)**: '관련 글 박스'나 'Related:' 같은 단독 문단을 절대 만들지 마라! 오직 본문을 설명하는 문장 중간에 자연스럽게 <a> 태그를 녹여서 [내 블로그 다른 글 리스트] 중 1~2개를 연결하되, 반드시 버튼 스타일 클래스와 새창열기를 적용하라. (예: "...이럴 때는 <a href='URL' target='_blank' class='int-link'>미리 예약하는 꿀팁 (🔗관련글 보기)</a>을 참고하면 좋습니다.")
-2. **외부 링크 무조건 3개 이상 강제 삽입 (신뢰도 E-E-A-T)**: 글의 내용과 연관된 유효한 외부 링크를 반드시 3개 이상 본문 적재적소에 배치하라. 아래 형태의 `<a class="ext-link">` 코드를 반드시 써라!
-   - 구글맵 검색 링크 (예: <a href="https://www.google.com/maps/search/?api=1&query=신주쿠+교엔" target="_blank" class="ext-link">신주쿠 교엔 위치 확인 (👉외부링크 이동)</a>)
-   - 구글 정보 검색 링크 (예: <a href="https://www.google.com/search?q=일본+eSIM+추천" target="_blank" class="ext-link">일본 eSIM 최신 할인 정보 검색 (👉외부링크 이동)</a>)
-   - 공식 홈페이지 또는 예약처 링크 1개 이상 필수.
-3. **결정 버튼**: 본문 맨 마지막에 `<h2>결론: 그래서 뭐 쓰라고? (상황별 추천)</h2>` 태그를 사용해라. (<h3> 태그 절대 금지)
-4. **표(Table) 깨짐 방지**: 대조가 필요한 정보는 반드시 `<div class="table-wrapper"><table>...</table></div>` 형태의 표를 사용하라.
-5. **SVG 텍스트 길이 제한**: JSON의 `summary` 배열 안의 단어들은 무조건 띄어쓰기 포함 **6글자 이하**의 짧은 핵심 명사로만 3개 적어라. (예: ["환전 꿀팁", "경비 절약", "실제 후기"])
+[🔥 핵심 강제 지시사항 - 서식 깨짐 절대 방지]:
+1. **HTML 포맷 강제 (매우 중요)**: 본문 작성 시 `##`, `**`, `*` 같은 마크다운 문법은 절대 금지합니다! 반드시 `<h2>`, `<h3>`, `<p>`, `<strong>`, `<ul>`, `<li>` 등의 완벽한 순수 HTML 태그로만 본문을 구성하세요. 
+2. **문맥형 내부링크**: 오직 본문을 설명하는 문장 중간에 자연스럽게 <a> 태그를 녹여서 [내 블로그 다른 글 리스트] 중 1~2개를 연결하되, 버튼 스타일을 적용하라. (예: <a href='URL' target='_blank' class='int-link'>꿀팁 보기 (🔗관련글)</a>)
+3. **외부 링크**: 구글맵 등 3개 필수 삽입. (예: <a href="URL" target="_blank" class="ext-link">위치 확인 (👉외부링크)</a>)
+4. **결정 버튼**: 본문 맨 마지막에 `<h2>결론: 그래서 뭐 쓰라고? (상황별 추천)</h2>` 태그를 사용해라.
+5. **표(Table)**: 대조가 필요한 정보는 반드시 `<div class="table-wrapper"><table>...</table></div>` 사용.
+6. **SVG 길이**: JSON의 `summary` 단어들은 띄어쓰기 포함 무조건 6글자 이하로 3개 작성.
 
-[출력 형식 가이드]: 순수 JSON 형식 문자열로만 반환하라. 절대 마크다운 표기를 포함하지 마라.
+[출력 형식 가이드]: 순수 JSON 형식 문자열로만 반환하라.
 JSON Keys: 
 - title: 클릭 유발 자극형 제목
 - meta_desc: 150자 요약
 - meta_keys: 쉼표 구분 키워드
 - slug: 영문 짧은 주소
-- summary: [짧은단어, 짧은단어, 짧은단어] (각각 무조건 6글자 이하)
-- map_location: 이 글의 내용과 가장 관련성 높은 구체적인 랜드마크, 공항, 또는 지역명 (예: 오사카 간사이 공항, 다낭 한시장, 인천공항 제1여객터미널. 일반 정보 글이면 인천공항으로 설정)
-- content: HTML 본문
-- category: 다음 중 택1 ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"]
+- summary: [짧은단어, 짧은단어, 짧은단어] (6글자 이하)
+- map_location: 내용과 연관성 높은 랜드마크
+- content: 반드시 <h2>, <h3>, <p>, <strong>, <ul>, <li> 등 HTML 태그로만 작성된 본문 (## 같은 마크다운 절대 금지)
+- category: ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"] 중 택1
 """
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"responseMimeType": "application/json"}
     }
 
-    # 2. 🔥 모델 리스트를 하나씩 순회하며 시도합니다.
     for attempt, model_name in enumerate(models_to_try, 1):
-        
-        # ✅ [이 줄이 반드시 여기에 있어야 합니다!] 
-        # 루프 안에서 매번 'model_name'을 받아와서 주소를 생성해야 합니다.
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
-        
         try:
             print(f"✍️ [4/6] 시도 {attempt}: {model_name} 모델 사용 중...")
             res = requests.post(api_url, json=payload, timeout=180)
@@ -336,15 +327,14 @@ JSON Keys:
             
             data = json.loads(raw_text)
             data['used_references'] = [target_blog_url]
-            return data # 성공 시 즉시 반환하며 종료
+            return data 
             
         except Exception as e:
-            # 서버 과부하(503)나 요청제한(429) 시 대기 후 다음 모델로 이동
             if "503" in str(e) or "429" in str(e) or "unavailable" in str(e).lower():
                 wait_time = 8 * attempt 
                 print(f"⚠️ {model_name} 과부하 감지 → {wait_time}초 대기 후 다음 모델로 전환합니다.")
                 time.sleep(wait_time)
-                continue # 다음 모델로 루프 재시작
+                continue 
             else:
                 print(f"🚨 모델 에러 ({model_name}): {e}")
                 time.sleep(5)
@@ -353,7 +343,7 @@ JSON Keys:
     print("❌ 모든 모델 시도가 실패했습니다.")
     return None
 
-# ==================== [6] 메인 실행 (🔥 로직 최적화) ====================
+# ==================== [6] 메인 실행 ====================
 def run_automation():
     print("🚀 블로그 자동 성장 시스템 가동...")
     
@@ -390,7 +380,7 @@ def run_automation():
             f.write("\n" + keyword)
         return
 
-    # 🔥 지도 생성 (제미나이가 직접 추출한 가장 연관성 높은 장소 활용!)
+    # 🔥 지도 생성 
     location = data.get('map_location', '인천공항 제1여객터미널').strip()
     map_html = create_map_embed(location)
     print(f"🗺️ [System] AI가 분석한 '{location}' 기반 구글맵 코드를 생성했습니다.")
@@ -403,11 +393,19 @@ def run_automation():
     </div>
     """
     
-    # SVG 카드는 파이썬 단에서 강제로 6글자 슬라이싱 적용
     card_tag = create_summary_card_tag(data.get('summary', ["핵심정리", "비용절약", "시간단축"]), data['title'])
+    
     content = data['content']
 
-    # 1. 상단 삽입 (관련글 박스 아예 뺌, 오직 문맥 링크만 유지)
+    # 🔥 AI가 마크다운(##, ***)을 출력했을 경우 강제로 HTML로 변환하는 안전망 추가 (깨짐 방지)
+    content = re.sub(r'^##\s+(.+)$', r'<h2>\1</h2>', content, flags=re.MULTILINE)
+    content = re.sub(r'^###\s+(.+)$', r'<h3>\1</h3>', content, flags=re.MULTILINE)
+    content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', content)
+    
+    if "<p>" not in content and "<br>" not in content:
+        content = content.replace('\n\n', '<br><br>').replace('\n', '<br>')
+
+    # 1. 상단 삽입
     top_insertion = f"{card_tag}{ads_code}"
     nav_match = re.search(r'</nav>', content, re.IGNORECASE)
     if nav_match:
@@ -415,11 +413,10 @@ def run_automation():
     else:
         content = top_insertion + content
 
-    # 2. 지도 삽입 (위치/공항 등 관련 단어가 들어간 h2 닫는 태그 직후)
+    # 2. 지도 삽입 
     h2_matches = list(re.finditer(r'<h2[^>]*>(.*?)</h2>', content, re.IGNORECASE | re.DOTALL))
     map_inserted = False
     
-    # AI가 뽑아준 위치나 관련 단어가 소제목에 있으면 바로 밑에 삽입
     location_keywords = ["위치", "공항", "지도", "가는", "어디", location.split()[0]]
     
     for match in h2_matches:
@@ -441,7 +438,7 @@ def run_automation():
 
     content += ads_code 
 
-    # 🔥 CSS (표, 리스트 안정화 및 외부/내부 링크 디자인 완벽 분리)
+    # 🔥 CSS 에러 완벽 해결 (괄호 모두 {{ }} 로 이중처리 완료)
     final_html = f"""
     <meta name="description" content="{data.get('meta_desc', '')}">
     <meta name="keywords" content="{data.get('meta_keys', '')}">
@@ -467,7 +464,7 @@ def run_automation():
         .entry-content nav a {{ color: #34495e; text-decoration: none; font-size: 16px; font-weight: 600; border-bottom: 1px dashed #bdc3c7; transition: color 0.3s; }} 
         .entry-content nav a:hover {{ color: #3498db; border-bottom-color: #3498db; }}
         
-       /* 🔥 링크 디자인 완벽 분리 */
+       /* 🔥 링크 디자인 에러(color is not defined) 완벽 차단! */
         .entry-content a {{ color: #2980b9; text-decoration: underline; font-weight: bold; transition: all 0.2s; }}
         .entry-content a:hover {{ color: #1f618d; }}
         .ext-link {{ color: #fff !important; background-color: #e67e22; padding: 4px 12px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-bottom: none; }}
