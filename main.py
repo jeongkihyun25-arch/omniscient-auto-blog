@@ -314,12 +314,12 @@ JSON Keys:
 - content: HTML 본문
 - category: 다음 중 택1 ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"]
 """
-     payload = {
+payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"responseMimeType": "application/json"}
     }
 
-   # 2. 🔥 모델 리스트를 하나씩 순회하며 시도합니다.
+# 2. 🔥 모델 리스트를 하나씩 순회하며 시도합니다.
     for attempt, model_name in enumerate(models_to_try, 1):
         
         # ✅ [이 줄이 반드시 여기에 있어야 합니다!] 
