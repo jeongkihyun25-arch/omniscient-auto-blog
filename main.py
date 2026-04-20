@@ -83,12 +83,50 @@ def prioritize_keywords(keywords):
     return p + n
 
 def generate_title_variants(keyword):
-    variants = [
-        f"{keyword} 이거 안 하면 비용 2배 (실제 후기)",
-        f"{keyword} 완벽 비교 가이드: 30분 아끼는 꿀팁",
-        f"여행 고수들이 몰래 쓰는 {keyword} 핵심 1가지"
+    # 🔥 현재 시간을 가져와서 제목에 자동 반영 (예: 2026년 4월 최신판!)
+    now = datetime.now()
+    current_year = now.year
+    current_month = now.month
+    
+    # 1. 시선을 끄는 서두 (Prefix) - 현재 연/월 자동 적용
+    prefixes = [
+        f"{current_year}년 최신판!", f"{current_month}월 여행 준비,", "찐후기 주의,", 
+        "현지인만 아는", "안 보면 무조건 손해!", "솔직히 말해서", 
+        "공유하기 아까운", "결론부터 말하면", "초보자 필독!", 
+        "실제 경험담:", "광고 없음!", "10년 차 여행가의", 
+        "역대급 꿀팁,", "드디어 공개!", "급하신 분들만 보세요,"
     ]
-    return random.choice(variants)
+    
+    # 2. 핵심 가치 제안 (Value Hook)
+    hooks = [
+        f"{keyword} 비용 0원 비법", f"{keyword} 딱 3 가지만 기억하세요",
+        f"실패 없는 {keyword} 전략", f"남들 다 속는 {keyword}의 진실",
+        f"{keyword} 3분 만에 끝내는 요약", f"의외로 모르는 {keyword} 디테일",
+        f"{keyword} 때문에 시간 버리지 마세요", f"{keyword} 완벽 비교 분석",
+        f"돈 버는 {keyword} 활용법", f"가장 쉬운 {keyword} 가이드",
+        f"{keyword} 장단점 팩트체크", f"{keyword} 설정 오류 해결법"
+    ]
+    
+    # 3. 신뢰 및 감정 요소 (Emotion/Proof)
+    proofs = [
+        "(직접 해본 결과)", "(Feat. 내돈내산)", "(실제 후기 포함)", 
+        "(진짜 핵심만)", "(부작용 주의)", "(의외의 정답)", 
+        "(정리 끝판왕)", "(꿀팁 방출)", "(현장 사진 포함)"
+    ]
+    
+    # 4. 마지막 자극 (Suffix)
+    suffixes = [
+        "확인해 보세요 🚀", "지금 바로 보기", "전격 비교!", 
+        "이 글 하나로 끝내세요", "놓치면 후회합니다", "정답 공개 ✨", 
+        "꼭 알고 가세요", "완벽 정리 완료"
+    ]
+
+    p = random.choice(prefixes)
+    h = random.choice(hooks)
+    pr = random.choice(proofs)
+    s = random.choice(suffixes)
+
+    return f"{p} {h} {pr} {s}"
 
 def generate_alt_text(keyword, context):
     variants = [
@@ -203,7 +241,7 @@ def get_naver_target_data():
         target_query = lines[0]
     
     if random.random() < 0.5:
-        title_guide = generate_title_variants(target_query)
+        title_guide = (target_query)
     else:
         title_guide = f"{target_query} 완벽 가이드 (실제 후기)"
         
@@ -213,7 +251,17 @@ def get_naver_target_data():
         lines = lines[1:] + [target_query]
         with open(QUEUE_FILE, "w", encoding="utf-8") as f: f.write("\n".join(lines))
 
-    search_suffix = [" 장단점", " 설정 오류", " 아이폰 꿀팁", " 실제 후기", " 주의사항"]
+   # 🔥 검색어 꼬리표를 대폭 확장하여 네이버에서 매번 새로운 뼈대 글을 수집하게 만듭니다.
+    search_suffix = [
+        # 기본 정보 & 꿀팁
+        " 장단점", " 꿀팁", " 사용법", " 완벽 가이드", " 총정리", " 비교 추천",
+        # 문제 해결 & 주의사항
+        " 설정 오류", " 안터짐", " 환불", " 주의사항", " 실패 후기", " 치명적 단점",
+        # 신뢰도 & 후기
+        " 실제 후기", " 내돈내산", " 팩트체크", " 솔직 리뷰", " 한달 사용기",
+        # 비용 & 혜택
+        " 가격 비교", " 할인 팁", " 비용 절약", " 무료 혜택", " 최저가 예약"
+    ]
     actual_search_query = f"{target_query}{random.choice(search_suffix)}"
     
     print(f"🎯 [2/6] 키워드: {target_query} (검색어: {actual_search_query})")
@@ -328,15 +376,15 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 2. **문맥형 최신 내부링크 (무조건 3개 자연 삽입 강제)**: 
    - 'Related:' 같은 단독 문단 절대 금지. 문장 안에 [내 블로그 다른 글 리스트] 중 3개를 골라 자연스럽게 버튼 스타일로 녹여라. 새창열기 필수.
    - 예시: `이럴 때는 <a href='URL' target='_blank' class='int-link'>관련 꿀팁 (🔗관련글)</a>을 참고하면 좋습니다.`
-3. **중간 CTA (수익 전환 포인트)**: 본문 중간에 클릭을 유도하는 링크를 1개 이상 배치하라. (예: 👉 지금 가장 많이 쓰는 요금제 확인하기)
+3. **중간 CTA (수익 전환 포인트)**: 본문 중간에 클릭을 유도하는 링크를 1개 이상 배치하라. 그리고 무조건 유효한 링크주소로할것 (예: 👉 지금 가장 많이 쓰는 요금제 확인하기)
 4. **🔥무조건 접속되는 안전한 구글 외부 링크 (무조건 3개 강제)**: 
-   - 가짜 오류 URL 방지를 위해, 모든 외부 링크는 **반드시 구글 검색 결과 URL** 또는 **구글 맵 검색 URL**로만 정확히 3개 작성하라. 새창열기 필수.
+   - 가짜 오류 URL 방지를 위해, 모든 외부 링크는 **반드시 구글 검색 결과 URL** 또는 **구글 맵 검색 URL**로만 정확히 3개 작성하라. 유효하지 않은 오류나는 링크걸지 말것 새창열기 필수.
    - 예시: `<a href='https://www.google.com/search?q=관련+검색어' target='_blank' class='ext-link'>관련 최신정보 구글 검색하기 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
-5. **결정 버튼**: 본문 맨 마지막에 `<h2 id='conclusion'>결론: 그래서 뭐 쓰라고? (상황별 추천)</h2>` 태그를 사용해라.
+5. **결정 버튼**: 본문 맨 마지막에 `<h2 id='conclusion'>결론: 그래서 뭐 쓰라고? 또는 주제에 맞게 다른 말투로 쓸것 (상황별 추천)</h2>` 태그를 사용해라.
 6. **표(Table)와 리스트(List) 절대 엄수 (비교 시 무조건 표 사용)**: 
    - 제품 비교나 장단점 설명 시 절대 줄글로 쓰지 말고, 반드시 `<div class='table-wrapper'><table><tr><th>...</th></tr><tr><td>...</td></tr></table></div>` 형태의 완벽한 HTML 표로 작성하라. 
    - 텍스트 나열은 `<p>` 대신 `<ul><li>...</li></ul>`를 적극 활용해 가독성을 높여라.
-7. **SVG 길이**: JSON의 `summary` 단어들은 무조건 6글자 이하로 3개 작성.
+7. **SVG 길이**: JSON의 `summary` 단어들은 무조건 6글자 이하로 3개 작성하돼 주제와 맞는 내용으로.
 
 [🌟 품질 필터 및 휴먼 톤(Human Tone) 작성 지침]:
 - 기계식 서론 금지: 검색 과정 등 군더더기 금지. 곧바로 독자에게 필요한 '핵심 혜택'부터 강력하게 던져라.
@@ -354,7 +402,7 @@ JSON Keys:
 - slug: 영문 짧은 주소
 - summary: [짧은단어, 짧은단어, 짧은단어] (6글자 이하)
 - map_location: 내용과 연관성 높은 랜드마크
-- content: 최상단 <nav> 목차와 id가 부여된 <h2> 태그, 완벽한 table/ul 등이 포함된 순수 HTML 본문
+- content: 서론 다음 <nav> 목차와 id가 부여된 <h2> 태그, 완벽한 table/ul 등이 포함된 순수 HTML 본문
 - category: ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"] 중 택1
 """
     payload = {
