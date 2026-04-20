@@ -392,6 +392,9 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 - 완벽한 정보 금지: 일부는 경험처럼 풀고, 반말 느낌이나 감탄문 1~2개 허용.
 - 이유+결과 공식: 모든 문장은 "이유+결과"를 적어라.
 - 문장 길이 섞기, 말투 살짝 흔들기, 반복 패턴 깨기
+- 한두 문장은 반말 느낌 섞기
+- 강조 문장은 짧게 끊기
+- 감탄문 1~2개 허용
 
 🔥 [JSON 에러 절대 방지 강제 규칙]: 본문(content) 안에 들어가는 모든 HTML 속성(href, class, id, style 등)에는 반드시 **작은따옴표(')**만 사용하라! (예: <a href='링크' class='버튼' style='color:red;'>). 값 내부에 큰따옴표(")가 섞이면 시스템이 파괴되므로 무조건 금지한다.
 
