@@ -46,7 +46,8 @@ def get_best_model():
         res = requests.get(url, timeout=15).json()
         available = [m['name'].replace('models/', '') for m in res.get('models', [])
                      if 'generateContent' in m.get('supportedGenerationMethods', [])]
-        priorities = ["gemini-1.5-pro", "gemini-2.0-pro", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+        # 🔥 1.5 모델 완전 삭제. 2.0 시리즈와 flash 최신버전만 우선순위로 둠
+        priorities = ["gemini-2.0-pro", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
         for p in priorities:
             for m in available:
                 if p in m: return m
@@ -109,7 +110,7 @@ def create_map_embed(location):
     </div>
     '''
 
-# ==================== [3] 네이버 수집 ====================
+# ==================== [3] 네이버 수집 (🔥 뼈대 제목 추출 추가) ====================
 def get_naver_target_data():
     now = datetime.now()
     COUNTRY_GROUPS = [
@@ -152,7 +153,6 @@ def get_naver_target_data():
         target_query = random.choice(lines[1:])
         lines.remove(target_query)
         lines.insert(0, target_query) 
-        print("♻️ [System] 20% 확률 발동: 큐 내 기존 키워드 재활용(SEO 누적)을 실행합니다.")
     else:
         target_query = lines[0]
     
@@ -170,7 +170,7 @@ def get_naver_target_data():
     search_suffix = [" 장단점", " 설정 오류", " 아이폰 꿀팁", " 실제 후기", " 주의사항"]
     actual_search_query = f"{target_query}{random.choice(search_suffix)}"
     
-    print(f"🎯 [2/6] 키워드: {target_query} (검색어: {actual_search_query} / 브릿지 연결: {related_keyword})")
+    print(f"🎯 [2/6] 키워드: {target_query} (검색어: {actual_search_query})")
 
     options = Options()
     options.add_argument("--headless")
@@ -181,6 +181,7 @@ def get_naver_target_data():
     valid_links = []
     scraped_data = ""
     target_blog_url = ""
+    skeleton_title = "" # 🔥 뼈대 블로그 제목 저장용
 
     try:
         url = f"https://search.naver.com/search.naver?ssc=tab.blog.all&query={urllib.parse.quote(actual_search_query)}"
@@ -209,7 +210,8 @@ def get_naver_target_data():
 
         if selected_links:
             target_blog_url = selected_links[0]['url'] 
-            print(f"🔍 [3/6] 총 {len(selected_links)}개 블로그 딥다이브 추출 중... (뼈대: {selected_links[0]['title']})")
+            skeleton_title = selected_links[0]['title'] # 뼈대 제목 추출
+            print(f"🔍 [3/6] 총 {len(selected_links)}개 블로그 추출 중... (뼈대: {skeleton_title})")
             
             for i, item in enumerate(selected_links):
                 mobile_url = item['url'].replace("blog.naver.com", "m.blog.naver.com")
@@ -227,13 +229,12 @@ def get_naver_target_data():
                     role = "Real Review Insight"
                     scraped_data += f"--- [{role}: {item['title']}] ---\n{text[:500]}\n\n"
     finally: driver.quit()
-    return target_query, target_blog_url, scraped_data, title_guide, related_keyword
+    return target_query, target_blog_url, scraped_data, title_guide, related_keyword, skeleton_title
 
-# ==================== [4] 유동적 SVG 요약 카드 (🔥 깨짐 현상 완벽 해결) ====================
+# ==================== [4] 유동적 SVG 요약 카드 ====================
 def create_summary_card_tag(summary_list, title):
     safe_list = [str(s).strip()[:15] for s in summary_list if s][:3]
     while len(safe_list) < 3: safe_list.append("") 
-    # viewBox를 사용하여 반응형으로 텍스트가 잘리지 않게 조정, 위치(y) 및 중앙 정렬 옵션 강화
     svg_code = f"""
     <svg width="100%" height="200" viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg">
       <rect width="600" height="200" fill="#FFF9C4" rx="15"/>
@@ -245,8 +246,8 @@ def create_summary_card_tag(summary_list, title):
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
     return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{title} 핵심 요약"/></div>'
 
-# ==================== [5] 원고 생성 (🔥 디자인 가이드 강화 & 주제 중복 차단) ====================
-def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword):
+# ==================== [5] 원고 생성 (🔥 뼈대 동기화 & 에러 방지 프롬프트) ====================
+def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword, skeleton_title):
     model_name = get_best_model()
     api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
 
@@ -257,36 +258,34 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
     prompt = f"""
 [타겟 키워드]: {keyword}
 [권장 제목 뼈대]: {title_guide}
-[페르소나]: {current_persona}
+[페르소나]: {current_persona} (이 성격에 빙의하여 직접 경험한 듯이 작성하라)
 [내 블로그 다른 글 리스트]: 
 {recent_posts_str}
+
+[🔥 이번 글의 핵심 메인 테마 (매우 중요!)]: 
+제공된 뼈대 블로그의 제목인 **[{skeleton_title}]**이 다루는 특정 장소, 특정 상황, 심층 꿀팁을 이번 포스팅의 핵심 앵글로 삼아라. 똑같은 기본 설명만 반복하는 글이 되면 절대 안 된다!
 
 [10개 블로그 분석 데이터]: 
 {scraped_data}
 
-[미션]: 독자가 즉시 '결정'을 하도록 유도하는, 최소 4,000자에서 6,000자 분량의 '밀도 높은' 전환형 포스팅을 작성하라.
+[미션]: 독자가 즉시 '결정'을 하도록 유도하는, 최소 4,000자에서 6,000자 분량의 '초고밀도' 99점짜리 전환형 포스팅을 작성하라. 
 
-[🔥 주제 중복 금지 및 새로운 앵글 (매우 중요!)]:
-위 [내 블로그 다른 글 리스트]의 제목들을 반드시 확인해라. 이미 다룬 뻔한 내용(예: 기본 사용법, 단순 개통 방법)을 또 쓰지 마라! 이번 글은 [분석 데이터]를 활용하여 '속도/안정성 도시별 비교', '가장 치명적인 오류 해결법', '기기별(아이폰/갤럭시) 주의사항' 등 **기존 글과 겹치지 않는 완전 새로운 심화 앵글(Niche)**로 비틀어서 작성하라. 
-
-[🔥 UX 및 시각적 디자인 강제 지시사항 - 절대 엄수]:
-1. **목차 양식 고정**: 서론 직후 목차 작성 시, 반드시 `<nav><div class="toc-title">📑 목차 (클릭 시 바로 이동)</div><ul>...` 로 작성하라.
-2. **링크 디자인의 3원칙 (가장 중요 - 무조건 지킬 것)**:
-   - **외부 링크 (E-E-A-T용 3개 필수)**: 구글맵 1개, 공식 판매/예약처 1개, 공식 통신사 1개를 넣되, 반드시 버튼처럼 보이도록 CSS 클래스를 적용하라! 
+[🔥 UX 및 시각적 디자인 강제 지시사항 - 에러 방지]:
+1. **목차 앵커 고장 수리**: 목차(<nav> <ul> <li>) 안의 <a> 태그 href 속성값과, 본문으로 내려갔을 때의 <h2> 태그 id 속성값은 **토씨 하나 틀리지 않고 100% 정확히 일치**해야 한다. (예: href="#esim-setup" 이면 반드시 <h2 id="esim-setup"> 이어야 함)
+2. **링크 디자인의 3원칙 (무조건 지킬 것)**:
+   - **외부 링크 (E-E-A-T용)**: 본문에 구글맵 장소 링크 2~3개, 관련 공식 판매처 1개, 통신사 참고 1개를 분산해서 삽입하라. (반드시 아래 포맷 사용)
      `<a href="URL" target="_blank" class="ext-link">원하는 텍스트 (👉외부링크 이동)</a>`
-   - **내부 앵커 링크 (본문 내 스크롤 이동)**: 표나 특정 내용으로 안내할 때 사용!
-     `<a href="#해당섹션id" class="anchor-link">👉 아래 비교표 클릭해서 확인하기</a>`
-   - **관련 글 링크 금지어**: "Related: ~" 처럼 문단을 새로 파서 링크만 덜렁 적지 마라! 무조건 문장을 전개하는 **글 중간에 자연스럽게 <a> 태그를 녹여서** 링크하라.
-3. **표(Table) 깨짐 방지**: 'A vs B 요금 비교', '도시별 속도 비교' 등 대조가 필요한 정보는 줄글로 쓰지 말고 **무조건 <table> 표를 사용하여 한눈에 띄게 정리**하라. 단, 모바일에서 깨지지 않게 표는 반드시 `<div class="table-wrapper"><table>...</table></div>` 코드로 감싸라.
+   - **내부 앵커 링크 (스크롤 이동)**: `<a href="#해당섹션id" class="anchor-link">👉 아래 비교표 클릭해서 확인하기</a>`
+   - **문맥형 내부링크 (내 블로그 글)**: 문단 중간에 설명하며 자연스럽게 녹여라. 단독 문단으로 블록을 띄우지 마라.
+3. **표(Table) 찌그러짐 방지**: 비교가 필요한 정보는 줄글로 쓰지 말고 **반드시 <table> 표를 사용**하라. 모바일에서 깨지지 않게 표는 반드시 `<div class="table-wrapper"><table>...</table></div>` 코드로 감싸라.
 
 [🔥 내용 작성 지시사항]:
-1. **후킹**: 첫 문장에는 "손해", "시간", "돈" 중 하나를 포함하라. 서론 직후 "결론부터 말하면, 핵심은 단 하나입니다: ~" 로 요약하라.
-2. **결정 버튼**: 마지막에 '<h3>결론: 그래서 뭐 쓰라고? (상황별 추천)</h3>' 섹션을 무조건 넣어 상황별 정답을 내려라.
-3. **숫자 활용**: 비용(원)과 시간(분)을 숫자로 뚜렷하게 비교하라.
-4. **동적 id 생성**: <h2>의 id는 문맥 영단어(예: id="city-speed-compare")로 매번 다르게 생성하라.
+1. **후킹**: 서론 직후 "결론부터 말하면, 핵심은 단 하나입니다: ~" 로 흩어진 정보를 하나로 묶어라.
+2. **결정 버튼**: 본문 맨 마지막에 결론 섹션을 만드는데, 태그가 중첩되어 HTML이 깨지지 않도록 절대 <h3> 안에 또 다른 헤딩 태그를 넣지 마라. (그냥 '<h3>결론: 그래서 뭐 쓰라고? (상황별 추천)</h3>' 라고 써라).
+3. **숫자 활용**: 비용(원)과 시간(분)을 숫자로 명확히 비교하라.
 
 [출력 형식 가이드]: 순수 JSON 형식 문자열로만 반환하라. 절대 마크다운 표기(```json)를 포함하지 마라.
-JSON Keys: title, meta_desc, meta_keys, slug, summary (이모지+짧은단어 3개 리스트), content (HTML 본문), category
+JSON Keys: title, meta_desc, meta_keys, slug, summary (이모지+짧은단어 3개), content (HTML 본문), category
 """
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -296,7 +295,7 @@ JSON Keys: title, meta_desc, meta_keys, slug, summary (이모지+짧은단어 3�
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            print(f"✍️ [4/6] {current_persona} 모드로 4~6천자 초고밀도 UX/UI 최적화 원고 생성 중... (시도 {attempt + 1})")
+            print(f"✍️ [4/6] {current_persona} 모드로 4~6천자 초고밀도 원고 생성 중... (시도 {attempt + 1})")
             res = requests.post(api_url, json=payload, timeout=180)
             res.raise_for_status()
             
@@ -313,7 +312,7 @@ JSON Keys: title, meta_desc, meta_keys, slug, summary (이모지+짧은단어 3�
             
     return None
 
-# ==================== [6] 메인 실행 (🔥 CSS 및 위치 완벽 튜닝) ====================
+# ==================== [6] 메인 실행 (🔥 HTML 찢어짐 원천 차단) ====================
 def run_automation():
     print("🚀 블로그 자동 성장 시스템 가동...")
     
@@ -337,12 +336,12 @@ def run_automation():
     print("✅ [1/6] Blogger 인증 완료")
 
     recent_posts = get_recent_posts(service, BLOG_ID)
-    keyword, target_url, scraped_data, title_guide, related_keyword = get_naver_target_data()
+    keyword, target_url, scraped_data, title_guide, related_keyword, skeleton_title = get_naver_target_data()
     
     filtered_posts = get_related_posts_by_keyword(recent_posts, keyword)
     context_posts = filtered_posts if len(filtered_posts) >= 2 else recent_posts
 
-    data = generate_master_content(keyword, target_url, scraped_data, title_guide, context_posts, related_keyword)
+    data = generate_master_content(keyword, target_url, scraped_data, title_guide, context_posts, related_keyword, skeleton_title)
     
     if not data: 
         print("❌ 생성 실패. 키워드를 큐에 재등록합니다.")
@@ -350,12 +349,12 @@ def run_automation():
             f.write("\n" + keyword)
         return
 
-    # 🔥 지도 생성 
+    # 지도 생성
     location = extract_location_keyword(keyword)
     map_html = create_map_embed(location)
     print(f"🗺️ [System] '{location}' 기반 구글맵 코드를 생성했습니다.")
 
-    # 🔥 하단 관련글 박스 깔끔하게 디자인 적용
+    # 하단 보조용 관련글 (깨지는 디자인 수정 완료)
     related_html = ""
     if context_posts:
         related_html = "<div class='related-posts-container'><h3>📌 같이 보면 돈이 되는 글</h3><ul>"
@@ -373,67 +372,73 @@ def run_automation():
     card_tag = create_summary_card_tag(data.get('summary', ["핵심정리", "비용절약", "시간단축"]), data['title'])
     content = data['content']
 
-    # 1. 상단 삽입 (관련글 뺌. SVG 카드와 상단 광고만)
+    # 1. 상단 삽입
     top_insertion = f"{card_tag}{ads_code}"
     if re.search(r'</nav>', content, re.IGNORECASE): 
         content = re.sub(r'(</nav>)', f'\\1{top_insertion}', content, flags=re.IGNORECASE, count=1)
     else: 
         content = top_insertion + content
 
-    # 2. 지능형 구글맵 위치 선정 로직
-    h2_pattern = re.compile(r'(<h2[^>]*>.*?</h2>)', re.IGNORECASE)
-    h2_tags = h2_pattern.findall(content)
+    # 2. 지도 삽입
+    h2_matches = list(re.finditer(r'<h2[^>]*>', content, re.IGNORECASE))
     map_inserted = False
-    
     location_keywords = ["위치", "공항", "지도", "가는", "어디", location]
-    for h2_tag in h2_tags:
-        if any(k in h2_tag for k in location_keywords):
-            content = content.replace(h2_tag, h2_tag + map_html, 1)
-            map_inserted = True
-            break
-            
-    if not map_inserted and len(h2_tags) > 0:
-        target_h2 = h2_tags[1] if len(h2_tags) > 1 else h2_tags[0]
-        content = content.replace(target_h2, target_h2 + map_html, 1)
-
-    # 3. 중간 광고 및 하단 관련글 박스 배치
-    content = re.sub(r'(<h2)', ads_code + r'\1', content, count=1) 
     
-    h2_parts = content.split("<h2") 
-    if len(h2_parts) >= 4: 
-        mid_index = len(h2_parts) // 2
-        # 중간 광고 삽입
-        h2_parts[mid_index] = ads_code + "<h2" + h2_parts[mid_index]
-        # 결론(마지막 h2) 바로 위에 관련글 박스 삽입 (문맥을 해치지 않는 하단부)
-        h2_parts[-1] = related_html + "<h2" + h2_parts[-1]
-        content = "<h2".join(h2_parts)
+    # 텍스트를 기준으로 찾아서 그 위에 있는 h2 다음에 넣거나, 안전하게 문자열 치환
+    for match in h2_matches:
+        h2_tag = match.group(0)
+        # h2 태그의 텍스트 콘텐츠 추출 (정규식 응용)
+        tag_end = content.find('</h2>', match.end())
+        if tag_end != -1:
+            h2_content = content[match.start():tag_end+5]
+            if any(k in h2_content for k in location_keywords):
+                content = content.replace(h2_content, h2_content + map_html, 1)
+                map_inserted = True
+                break
+                
+    if not map_inserted and len(h2_matches) > 0:
+        target_h2 = h2_matches[1].group(0) if len(h2_matches) > 1 else h2_matches[0].group(0)
+        # 안전한 치환을 위해 정규식 사용
+        content = re.sub(r'(' + re.escape(target_h2) + r'.*?</h2>)', r'\1' + map_html, content, count=1, flags=re.DOTALL)
+
+    # 3. 광고 삽입 (🔥 html 태그가 박살나지 않도록 split 대신 regex 사용)
+    content = re.sub(r'(<h2[^>]*>)', ads_code + r'\1', content, count=1) # 첫 h2 위
+    
+    h2_matches = list(re.finditer(r'<h2[^>]*>', content, re.IGNORECASE))
+    if len(h2_matches) >= 3:
+        mid_idx = len(h2_matches) // 2
+        insert_pos = h2_matches[mid_idx].start()
+        content = content[:insert_pos] + ads_code + content[insert_pos:]
+
+    # 4. 결론 바로 위에 관련글 박스 넣기
+    conclusion_match = re.search(r'<h[23][^>]*>.*?결론.*?</h[23]>', content)
+    if conclusion_match:
+        pos = conclusion_match.start()
+        content = content[:pos] + related_html + content[pos:]
     else:
-        content = content + related_html + ads_code 
+        content += related_html
 
-    content = content + ads_code 
+    content += ads_code # 맨 마지막
 
-    # 🔥 CSS 대폭 수정 (시인성 극대화: 외부링크, 앵커, 표, 리스트, 목차, 폰트크기 고정)
+    # 🔥 CSS (글자 크기 일관성, 링크 디자인 명확화)
     final_html = f"""
     <meta name="description" content="{data.get('meta_desc', '')}">
     <meta name="keywords" content="{data.get('meta_keys', '')}">
     <style>
         html {{ scroll-behavior: smooth; }} 
         .entry-content {{ font-size: 16px; line-height: 1.8; color: #333; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; word-break: keep-all; }} 
-        .entry-content h2 {{ font-size: 24px; color: #2c3e50; border-left: 6px solid #3498db; padding: 8px 15px; margin: 45px 0 20px; background: #f8f9fa; scroll-margin-top: 100px; }} 
-        .entry-content h3 {{ font-size: 20px; color: #2980b9; border-bottom: 2px solid #3498db; padding-bottom: 8px; margin: 30px 0 15px; scroll-margin-top: 100px; }} 
+        .entry-content h2 {{ font-size: 24px !important; color: #2c3e50; border-left: 6px solid #3498db; padding: 8px 15px; margin: 45px 0 20px; background: #f8f9fa; scroll-margin-top: 100px; }} 
+        .entry-content h3 {{ font-size: 20px !important; color: #2980b9; border-bottom: 2px solid #3498db; padding-bottom: 8px; margin: 30px 0 15px; scroll-margin-top: 100px; }} 
         .entry-content p {{ margin-bottom: 20px; font-size: 16px; }} 
         
-        /* 🔥 표 시인성 강화 & 찌그러짐 방지 */
         .table-wrapper {{ width: 100%; overflow-x: auto; margin: 25px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-radius: 8px; }}
         .entry-content table {{ width: 100%; min-width: 500px; border-collapse: collapse; background: #fff; font-size: 15px; }} 
         .entry-content th {{ background: #3498db; color: white; padding: 12px; border: 1px solid #2980b9; font-weight:bold; white-space: nowrap; }} 
         .entry-content td {{ border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: middle; }} 
         
-        /* 🔥 리스트 시인성 강화 */
         .entry-content ul {{ background: #fdfdfd; border-radius: 8px; padding: 20px 20px 20px 40px; border: 1px solid #eee; margin: 20px 0; }}
         .entry-content li {{ margin-bottom: 10px; font-size: 16px; line-height: 1.7; }}
         
-        /* 🔥 목차 스타일 (형광색 제거, 다크 네이비로 깔끔하게) */
         .entry-content nav {{ background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 30px; }} 
         .toc-title {{ font-size: 18px; font-weight: bold; color: #2c3e50; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 8px; }}
         .entry-content nav ul {{ background: transparent; border: none; padding: 0; margin: 0; list-style: none; }} 
@@ -441,23 +446,23 @@ def run_automation():
         .entry-content nav a {{ color: #34495e; text-decoration: none; font-size: 16px; font-weight: 600; border-bottom: 1px dashed #bdc3c7; transition: color 0.3s; }} 
         .entry-content nav a:hover {{ color: #3498db; border-bottom-color: #3498db; }}
         
-        /* 🔥 링크 디자인 3원칙 완벽 분리 */
-        .entry-content a {{ color: #2980b9; text-decoration: underline; font-weight: bold; }}
-        .ext-link {{ color: #fff !important; background-color: #e67e22; padding: 4px 10px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+        /* 🔥 링크 디자인 완벽 분리 */
+        .entry-content a {{ color: #2980b9; text-decoration: underline; font-weight: bold; transition: all 0.2s; }}
+        .entry-content a:hover {{ color: #1f618d; }}
+        .ext-link {{ color: #fff !important; background-color: #e67e22; padding: 4px 12px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-bottom: none; }}
         .ext-link:hover {{ background-color: #d35400; }}
-        .anchor-link {{ color: #27ae60 !important; text-decoration: underline !important; font-size: 16px; display: inline-block; margin: 5px 0; }}
+        .anchor-link {{ color: #27ae60 !important; background-color: #eafaf1; padding: 4px 10px; border-radius: 6px; text-decoration: none !important; font-size: 16px; display: inline-block; margin: 5px 0; border: 1px solid #2ecc71; }}
         
         .entry-content .intro {{ background: #f0f7ff; padding: 18px 22px; border-radius: 10px; border-left: 6px solid #3498db; margin-bottom: 30px; font-weight: bold; font-size: 17px; line-height: 1.7; }} 
         
-        /* 🔥 같이 보면 돈이 되는 글 박스 수정 */
-        .related-posts-container {{ background: #fff; padding: 20px; border-radius: 12px; border: 2px solid #3498db; margin: 40px 0; }} 
-        .related-posts-container h3 {{ margin-top: 0; color: #e74c3c; font-size: 19px; border:none; margin-bottom:15px; padding:0; }} 
+        /* 🔥 같이 보면 돈이 되는 글 박스 수정 (그래픽 깨짐 해결) */
+        .related-posts-container {{ background: #f8f9fa; padding: 25px; border-radius: 12px; border: 2px solid #3498db; margin: 40px 0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }} 
+        .related-posts-container h3 {{ margin-top: 0; color: #e74c3c; font-size: 20px !important; border-bottom: 2px dashed #eee; margin-bottom: 15px; padding-bottom: 10px; }} 
         .related-posts-container ul {{ background: transparent; border: none; padding: 0; margin: 0; list-style: none; }}
-        .related-posts-container li {{ margin-bottom: 10px; padding-left: 25px; position: relative; font-size: 16px; }}
-        .related-posts-container li:before {{ content: '👉'; position: absolute; left: 0; top: 0; }}
+        .related-posts-container li {{ margin-bottom: 12px; padding-left: 28px; position: relative; font-size: 17px; font-weight: 600; line-height: 1.5; }}
+        .related-posts-container li::before {{ content: '🔗'; position: absolute; left: 0; top: 2px; font-size: 16px; }}
         .related-posts-container a {{ color: #2c3e50; text-decoration: none; }}
         .related-posts-container a:hover {{ color: #3498db; text-decoration: underline; }}
-        b {{ color: #e74c3c; }}
     </style>
     <div class="entry-content">{content}</div>
     """
