@@ -296,11 +296,10 @@ def create_summary_card_tag(summary_list, alt_text):
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
     return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{alt_text}"/></div>'
 
-# ==================== [5] 원고 생성 (🔥 마크다운 방어 & 순수 HTML 강제) ====================
+# ==================== [5] 원고 생성 (🔥 JSON 에러 방어 및 극한의 서식 최적화) ====================
 def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword, skeleton_title):
     models_to_try = get_best_models() 
 
-    # 🔥 업그레이드 4: 페르소나 다양화 (패턴 깨기)
     personas = [
         "가성비 헌터 블로거", "효율 극대화 출장러", "디테일 끝판왕 J형 여행가",
         "처음 여행하는 사람 시점", "귀찮음 극혐형 인간", "현지인 빙의 여행객",
@@ -318,7 +317,7 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 
 [🔥 이번 글의 핵심 메인 테마]: 
 제공된 뼈대 블로그의 제목인 **[{skeleton_title}]**이 다루는 특정 상황, 심층 꿀팁을 이번 포스팅의 핵심 앵글로 삼아라. 
-초반에 반드시 "결론부터 말하면, 이심에서 손해 안 보는 핵심은 단 하나입니다."와 같은 형태로 1가지 명확한 핵심을 던지고 시작하라.
+초반에 반드시 "결론부터 말하면, 핵심은 단 하나입니다."와 같은 형태로 1가지 명확한 핵심을 던지고 시작하라.
 
 [10개 블로그 분석 데이터]: 
 {scraped_data}
@@ -326,28 +325,30 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 [미션]: 독자가 즉시 '결정'을 하도록 유도하는, 4,000자~6,000자 분량의 초고밀도 전환형 포스팅을 작성하라.
 
 [🔥 핵심 강제 지시사항 - 서식 깨짐 절대 방지 및 블로그 최적화]:
-1. **HTML 포맷 및 목차(TOC) 강제**: 
-   - 마크다운(`##`, `**`) 절대 금지! 순수 HTML 태그만 사용.
-   - 본문 최상단에 반드시 `<nav><div class="toc-title">목차</div><ul>...</ul></nav>` 형태의 목차를 작성하라.
-   - 목차의 링크는 `<a href="#sec1">` 처럼 앵커를 달고, 본문의 `<h2>` 태그에 반드시 `<h2 id="sec1">` 처럼 id를 일치시켜라.
-2. **문맥형 내부링크 (자연 삽입 강제)**: 'Related:' 같은 단독 문단 절대 금지. 문장 안에 자연스럽게 끼워 넣어라. (예: 공항에서 시간 낭비 없이 바로 인터넷을 쓰려면 <a href='URL' target='_blank' class='int-link'>인천공항 주차 꿀팁 (🔗관련글)</a>도 같이 알아두는 게 좋습니다.)
-3. **중간 CTA (수익 전환 포인트)**: 본문 중간에 독자가 클릭할 수밖에 없는 제휴/전환용 텍스트 링크(CTA)를 자연스럽게 1개 이상 배치하라. (예: 👉 지금 가장 많이 쓰는 이심 요금제 확인하기)
-4. **초정밀 외부 링크 (3개 이상 필수)**: 
-   - 본문 내용과 100% 일치하는 정확한 구글맵 또는 공식 사이트 URL을 찾아 연결하라.
-   - 포맷 강제: `<a href="정확한URL" target="_blank" class="ext-link">장소/정보 확인하기 <span style="font-size:12px;">(👉클릭하면 이동)</span></a>`
-5. **결정 버튼**: 본문 맨 마지막에 `<h2 id="conclusion">결론: 그래서 뭐 쓰라고? (상황별 추천)</h2>` 태그를 사용해라.
+1. **HTML 포맷 및 목차(TOC) 강제 (매우 중요)**: 
+   - 마크다운(`##`, `**`) 절대 금지! 오직 순수 HTML 태그만 사용.
+   - 본문 최상단에 반드시 `<nav><div class='toc-title'>목차</div><ul>...</ul></nav>` 형태의 목차를 작성하라.
+   - 목차의 링크는 `<a href='#sec1'>` 형태로 앵커를 달고, 본문의 소제목 <h2> 태그에는 반드시 `<h2 id='sec1'>` 처럼 id를 일치시켜 클릭 시 정확히 이동하게 하라.
+2. **문맥형 내부링크 (자연 삽입 강제)**: 'Related:' 같은 단독 문단 금지. 문장 안에 자연스럽게 버튼 스타일을 적용해라. (예: <a href='URL' target='_blank' class='int-link'>꿀팁 알아보기 (🔗관련글)</a>)
+3. **중간 CTA (수익 전환 포인트)**: 본문 중간에 클릭을 유도하는 링크를 1개 이상 배치하라. (예: 👉 지금 가장 많이 쓰는 요금제 확인하기)
+4. **초정밀 외부 링크 (5개 이상 필수)**: 
+   - 내용과 연관된 구글맵, 공식 사이트 링크를 5개 이상 본문에 삽입하라.
+   - 포맷 무조건 강제: `<a href='정확한URL' target='_blank' class='ext-link'>장소/정보 확인하기 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
+5. **결정 버튼**: 본문 맨 마지막에 `<h2 id='conclusion'>결론: 그래서 뭐 쓰라고? (상황별 추천)</h2>` 태그를 사용해라.
 6. **표(Table)와 리스트(List) 절대 엄수**: 
-   - 장단점이나 비교 정보는 반드시 `<div class="table-wrapper"><table><tr><th>...</th></tr><tr><td>...</td></tr></table></div>` 형태의 완벽한 HTML 표로 작성하라.
-   - 텍스트 나열은 `<p>` 대신 `<ul><li>...</li></ul>`를 적극 활용하라.
-7. **SVG 길이**: JSON의 `summary` 단어들은 띄어쓰기 포함 무조건 6글자 이하로 3개 작성.
+   - 비교/정리 정보는 반드시 `<div class='table-wrapper'><table><tr><th>...</th></tr><tr><td>...</td></tr></table></div>` 형태의 HTML 표로 작성하라.
+   - 텍스트 나열은 `<p>` 대신 `<ul><li>...</li></ul>`를 적극 활용해 가독성을 높여라.
+7. **SVG 길이**: JSON의 `summary` 단어들은 무조건 6글자 이하로 3개 작성.
 
 [🌟 품질 필터 및 휴먼 톤(Human Tone) 작성 지침]:
-- **기계식 서론 금지**: "오늘은 ~에 대해 알아보겠습니다" 같은 뻔한 AI 멘트 절대 금지. 곧바로 독자의 돈과 시간을 아껴주는 '핵심 혜택'부터 강력하게 던져라.
-- **리얼리티 200% 경험담**: 친한 카페 회원에게 썰을 푸는 듯한 말투(~했어요, ~더라고요, 솔직히 말해서, 찐으로 등) 사용. "제가 지난번에 이거 안 알아보고 갔다가 3만 원 날렸잖아요..." 같은 생생한 경험담과 감정을 녹여라.
-- **완벽한 정보 금지 & 인간적 틈새**: 모든 내용을 백과사전처럼 완벽하게 정리하지 마라. 일부는 경험처럼 자연스럽게 풀고, 한두 문장은 반말 느낌을 섞거나 강조 문장을 짧게 끊어라. 감탄문 1~2개 허용.
-- **이유+결과 공식**: 모든 문장은 "왜?"를 포함하고 단순 설명 대신 "이유+결과"를 적어라. 같은 표현 반복 금지.
+- 기계식 서론 금지: 검색 과정 등 군더더기 금지. 곧바로 독자에게 필요한 '핵심 혜택'부터 강력하게 던져라.
+- 리얼리티 경험담: 친한 회원에게 썰 푸는 말투(~했어요, 솔직히 말해서 등) 사용.
+- 완벽한 정보 금지: 일부는 경험처럼 풀고, 반말 느낌이나 감탄문 1~2개 허용.
+- 이유+결과 공식: 모든 문장은 "이유+결과"를 적어라.
 
-[출력 형식 가이드]: 순수 JSON 형식 문자열로만 반환하라. 절대 마크다운 표기를 포함하지 마라.
+🔥 [JSON 에러 절대 방지 강제 규칙]: 본문(content) 안에 들어가는 모든 HTML 속성(href, class, id, style 등)에는 반드시 **작은따옴표(')**만 사용하라! (예: <a href='링크' class='버튼' style='color:red;'>). 값 내부에 큰따옴표(")가 섞이면 시스템이 파괴되므로 무조건 금지한다.
+
+[출력 형식 가이드]: 순수 JSON 형식 문자열로만 반환하라.
 JSON Keys: 
 - title: 클릭 유발 자극형 제목
 - meta_desc: 150자 요약
@@ -379,7 +380,6 @@ JSON Keys:
             
         except Exception as e:
             if "503" in str(e) or "429" in str(e) or "unavailable" in str(e).lower():
-                # 🔥 과부하 대기 시간 약간 늘림 (서버 리셋 여유 확보)
                 wait_time = 15 * attempt 
                 print(f"⚠️ {model_name} 과부하 감지 → {wait_time}초 대기 후 다음 모델로 전환합니다.")
                 time.sleep(wait_time)
@@ -429,7 +429,6 @@ def run_automation():
             f.write("\n" + keyword)
         return
 
-    # 🔥 지도 생성 
     location = data.get('map_location', '인천공항 제1여객터미널').strip()
     map_html = create_map_embed(location)
     print(f"🗺️ [System] AI가 분석한 '{location}' 기반 구글맵 코드를 생성했습니다.")
@@ -447,11 +446,9 @@ def run_automation():
     
     content = data['content']
     
-    # 🔥 업그레이드 적용: 사람 냄새 나는 리듬 적용
     content = humanize_text(content)
     content = break_paragraphs(content)
 
-    # 🔥 AI가 마크다운(##, ***)을 출력했을 경우 강제로 HTML로 변환하는 안전망 추가 (깨짐 방지)
     content = re.sub(r'^##\s+(.+)$', r'<h2>\1</h2>', content, flags=re.MULTILINE)
     content = re.sub(r'^###\s+(.+)$', r'<h3>\1</h3>', content, flags=re.MULTILINE)
     content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', content)
@@ -459,7 +456,6 @@ def run_automation():
     if "<p>" not in content and "<br>" not in content:
         content = content.replace('\n\n', '<br><br>').replace('\n', '<br>')
 
-    # 1. 상단 삽입
     top_insertion = f"{card_tag}{ads_code}"
     nav_match = re.search(r'</nav>', content, re.IGNORECASE)
     if nav_match:
@@ -467,10 +463,8 @@ def run_automation():
     else:
         content = top_insertion + content
 
-    # 🔥 업그레이드 5: 첫 번째 h2 바로 위에도 광고 하나 더 추가 (수익 극대화)
     content = re.sub(r'(<h2[^>]*>)', ads_code + r'\1', content, count=1)
 
-    # 2. 지도 삽입 
     h2_matches = list(re.finditer(r'<h2[^>]*>(.*?)</h2>', content, re.IGNORECASE | re.DOTALL))
     map_inserted = False
     
@@ -487,7 +481,6 @@ def run_automation():
         target_match = h2_matches[1] if len(h2_matches) > 1 else h2_matches[0]
         content = insert_html_at_pos(content, map_html, target_match.end())
 
-    # 3. 중간 및 하단 광고 삽입 
     h2_matches = list(re.finditer(r'<h2[^>]*>', content, re.IGNORECASE))
     if len(h2_matches) >= 3:
         mid_idx = len(h2_matches) // 2
@@ -495,7 +488,6 @@ def run_automation():
 
     content += ads_code 
 
-    # 🔥 CSS (완벽한 표, 리스트, 목차, 외부/내부 링크 디자인)
     final_html = f"""
     <meta name="description" content="{data.get('meta_desc', '')}">
     <meta name="keywords" content="{data.get('meta_keys', '')}">
@@ -540,8 +532,7 @@ def run_automation():
         
     final_labels = [chosen_category, "여행 꿀팁"]
     
-    # 🔥 업그레이드 6: 업로드 전 시간 랜덤 지연 (사람처럼 보이기)
-    sleep_time = random.randint(180, 600) # 깃허브 타임아웃 방지를 위해 3분~10분 사이로 세팅
+    sleep_time = random.randint(180, 600)
     print(f"⏳ [System] 봇으로 걸리지 않기 위해 {sleep_time}초 대기 후 발행합니다...")
     time.sleep(sleep_time)
     
