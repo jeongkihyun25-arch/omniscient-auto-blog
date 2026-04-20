@@ -46,12 +46,24 @@ def get_best_model():
         res = requests.get(url, timeout=15).json()
         available = [m['name'].replace('models/', '') for m in res.get('models', [])
                      if 'generateContent' in m.get('supportedGenerationMethods', [])]
-        priorities = ["gemini-2.0-pro", "gemini-2.5-flash", "gemini-2.0-flash"]
+        
+        # 🔥 1.5 완전 배제! 2.5 및 2.0 최신 모델들만 우선순위 탐색
+        priorities = [
+            "gemini-2.5-flash",     # 1순위: 가장 빠르고 최신인 2.5 플래시
+            "gemini-2.0-pro-exp",   # 2순위: 2.0 프로
+            "gemini-2.0-flash-exp", # 3순위: 2.0 플래시 (실험버전)
+            "gemini-2.0-flash"      # 4순위: 2.0 기본 플래시
+        ]
+        
         for p in priorities:
             for m in available:
                 if p in m: return m
-        return available[0] if available else "gemini-2.0-flash"
-    except: return "gemini-2.0-flash"
+                
+        # 리스트에 없으면 사용 가능한 첫 번째 모델, 아예 없으면 2.5 플래시 기본값 반환
+        return available[0] if available else "gemini-2.5-flash"
+        
+    except: 
+        return "gemini-2.5-flash"
 
 def prioritize_keywords(keywords):
     p = [k for k in keywords if any(x in k for x in PRIORITY_KEYWORDS)]
