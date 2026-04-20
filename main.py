@@ -38,26 +38,55 @@ CONTENT_FLOW = {
     "미국": ["여행자 보험", "해외 로밍 요금"]
 }
 
-# ==================== [2] 핵심 유틸리티 ====================
+ ==================== [2] 핵심 유틸리티 (블로그 자동 작성용 모델 리스트) ====================
 def get_best_models():
-    """서버 과부하(503/429) 대비 최강의 모델 라인업 (Flash Lite 포함)"""
+    """서버 과부하(503/429) 대비 최강의 모델 라인업 
+    - Flash-Lite를 과부하 방어용으로 앞쪽 배치
+    - 2.0 계열 최소화 (안정성 확보)
+    """
     print("🔍 [1/6] 최고 모델 라인업 탐색 중...")
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
     
-    # API 호출 실패 시 강제 할당할 기본 방어 리스트
-    default_models = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.5-pro"]
-    
+    # 최종 안전망
+    default_models = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"]
+
     try:
         res = requests.get(url, timeout=10).json()
         available = [m['name'].replace('models/', '') for m in res.get('models', [])
                      if 'generateContent' in m.get('supportedGenerationMethods', [])]
-        
-        # 🔥 1순위: 2.5 메인 / 2순위: 2.5 Lite(과부하 방어용) / 3순위: 2.0 메인
-        priorities = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.5-pro"]
-        best_models = [m for p in priorities for m in available if p in m]
-        
-        return best_models if best_models else default_models
-    except: 
+
+        if not available:
+            return default_models
+
+        # 과부하 대비 우선순위 (Lite를 2순위로 올림)
+        priorities = [
+            "gemini-2.5-flash",          # 1순위: 기본 최고 가성비
+            "gemini-2.5-flash-lite",     # 2순위: 과부하 시 가장 먼저 fallback (추천!)
+            "gemini-2.5-pro",            # 3순위: 품질 최우선 (비용 ↑)
+            "gemini-2.5-flash-preview",  # 4순위: 최신 preview 허용
+        ]
+
+        best_models = []
+        seen = set()
+        for p in priorities:
+            for m in available:
+                if p in m and m not in seen:
+                    best_models.append(m)
+                    seen.add(m)
+
+        if best_models:
+            print(f"✅ 선택된 모델 리스트: {best_models[:5]}")
+            return best_models
+
+        # 2.5 시리즈만이라도 찾아서 반환
+        models_25 = [m for m in available if '2.5' in m]
+        if models_25:
+            return sorted(models_25, reverse=True)
+
+        return default_models
+
+    except Exception as e:
+        print(f"⚠️ 모델 리스트 호출 실패: {e} → 기본 리스트 사용")
         return default_models
 
 def prioritize_keywords(keywords):
