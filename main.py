@@ -136,10 +136,10 @@ def insert_html_at_pos(html_content, insert_str, pos):
 def get_naver_target_data():
     now = datetime.now()
     COUNTRY_GROUPS = [
-        ["일본", "대만", "홍콩", "중국"],           
+        ["일본", "대만", "홍콩", "중국"],            
         ["베트남", "태국", "필리핀", "인도네시아"],  
-        ["미국", "캐나다", "하와이"],               
-        ["프랑스", "이탈리아", "스페인", "영국"]    
+        ["미국", "캐나다", "하와이"],                
+        ["프랑스", "이탈리아", "스페인", "영국"]     
     ]
     group_index = now.month % len(COUNTRY_GROUPS)
     current_group = COUNTRY_GROUPS[group_index]
@@ -352,6 +352,7 @@ JSON Keys:
 
     print("❌ 모든 모델 시도가 실패했습니다.")
     return None
+
 # ==================== [6] 메인 실행 (🔥 로직 최적화) ====================
 def run_automation():
     print("🚀 블로그 자동 성장 시스템 가동...")
@@ -467,13 +468,13 @@ def run_automation():
         .entry-content nav a:hover {{ color: #3498db; border-bottom-color: #3498db; }}
         
        /* 🔥 링크 디자인 완벽 분리 */
-        .entry-content a { color: #2980b9; text-decoration: underline; font-weight: bold; transition: all 0.2s; }
-        .entry-content a:hover { color: #1f618d; }
-        .ext-link { color: #fff !important; background-color: #e67e22; padding: 4px 12px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-bottom: none; }
-        .ext-link:hover { background-color: #d35400; }
-        .int-link { color: #fff !important; background-color: #3498db; padding: 4px 12px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-bottom: none; }
-        .int-link:hover { background-color: #2980b9; }
-        .anchor-link { color: #27ae60 !important; background-color: #eafaf1; padding: 4px 10px; border-radius: 6px; text-decoration: none !important; font-size: 16px; display: inline-block; margin: 5px 0; border: 1px solid #2ecc71; }
+        .entry-content a {{ color: #2980b9; text-decoration: underline; font-weight: bold; transition: all 0.2s; }}
+        .entry-content a:hover {{ color: #1f618d; }}
+        .ext-link {{ color: #fff !important; background-color: #e67e22; padding: 4px 12px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-bottom: none; }}
+        .ext-link:hover {{ background-color: #d35400; }}
+        .int-link {{ color: #fff !important; background-color: #3498db; padding: 4px 12px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-bottom: none; }}
+        .int-link:hover {{ background-color: #2980b9; }}
+        .anchor-link {{ color: #27ae60 !important; background-color: #eafaf1; padding: 4px 10px; border-radius: 6px; text-decoration: none !important; font-size: 16px; display: inline-block; margin: 5px 0; border: 1px solid #2ecc71; }}
         
         .entry-content .intro {{ background: #f0f7ff; padding: 18px 22px; border-radius: 10px; border-left: 6px solid #3498db; margin-bottom: 30px; font-weight: bold; font-size: 17px; line-height: 1.7; }} 
     </style>
