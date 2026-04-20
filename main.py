@@ -38,59 +38,32 @@ CONTENT_FLOW = {
     "미국": ["여행자 보험", "해외 로밍 요금"]
 }
 
-# ==================== [2] 핵심 유틸리티 (블로그 자동 작성용 모델 리스트) ====================
-def get_best_models():
-    """블로그 글 자동 생성에 최적화된 모델 리스트를 우선순위대로 반환
-    - 2.5 시리즈 집중 (1.5, 2.0 계열 배제)
-    - Flash 계열 위주로 비용/속도/품질 균형
-    """
-    print("🔍 [1/6] 최고 모델 라인업 탐색 중...")
-    
+# ==================== [2] 핵심 유틸리티 ====================
+def get_best_model():
+    print("🔍 [1/6] 최고 모델 탐색 중...")
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
-    
-    # API 호출 실패 시 안전한 기본 리스트 (블로그에 가장 적합한 순서)
-    default_models = [
-        "gemini-2.5-flash",       # 대부분의 블로그 글에 최고 가성비
-        "gemini-2.5-flash-lite",  # 비용 극한 절감 + 대량 생성 시
-        "gemini-2.5-pro"          # 퀄리티가 부족할 때만 (비용 ↑)
-    ]
-
     try:
-        res = requests.get(url, timeout=10).json()
+        res = requests.get(url, timeout=15).json()
         available = [m['name'].replace('models/', '') for m in res.get('models', [])
                      if 'generateContent' in m.get('supportedGenerationMethods', [])]
-
-        if not available:
-            return default_models
-
-        # 블로그 자동 작성에 최적화된 우선순위
+        
+        # 🔥 1.5 완전 배제! 2.5 및 2.0 최신 모델들만 우선순위 탐색
         priorities = [
-            "gemini-2.5-flash",          # 1순위: 속도 + 품질 + 비용 최고 균형
-            "gemini-2.5-flash-lite",     # 2순위: 초저비용 대량 생성
-            "gemini-2.5-pro",            # 3순위: 고품질 필요 시
-            "gemini-2.5-flash-preview",  # 4순위: 최신 preview (필요하면)
+            "gemini-2.5-flash",     # 1순위: 가장 빠르고 최신인 2.5 플래시
+            "gemini-2.0-pro-exp",   # 2순위: 2.0 프로
+            "gemini-2.0-flash-exp", # 3순위: 2.0 플래시 (실험버전)
+            "gemini-2.0-flash"      # 4순위: 2.0 기본 플래시
         ]
-
-        best_models = []
+        
         for p in priorities:
             for m in available:
-                if p in m and m not in best_models:
-                    best_models.append(m)
-
-        if best_models:
-            print(f"✅ 블로그용 선택된 모델 리스트: {best_models[:4]}")
-            return best_models
-
-        # 2.5 시리즈만이라도 찾아서 최신 순으로 반환
-        models_25 = [m for m in available if '2.5' in m]
-        if models_25:
-            return sorted(models_25, reverse=True)   # 최신 버전이 앞에 오게
-
-        return default_models
-
-    except Exception as e:
-        print(f"⚠️ 모델 탐색 실패: {e} → 기본 모델 리스트 사용")
-        return default_models
+                if p in m: return m
+                
+        # 리스트에 없으면 사용 가능한 첫 번째 모델, 아예 없으면 2.5 플래시 기본값 반환
+        return available[0] if available else "gemini-2.5-flash"
+        
+    except: 
+        return "gemini-2.5-flash"
 
 def prioritize_keywords(keywords):
     p = [k for k in keywords if any(x in k for x in PRIORITY_KEYWORDS)]
