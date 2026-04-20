@@ -38,16 +38,10 @@ CONTENT_FLOW = {
     "미국": ["여행자 보험", "해외 로밍 요금"]
 }
 
-# ==================== [2] 핵심 유틸리티 (모델 리스트 최적화) ====================
+# ==================== [2] 핵심 유틸리티 ====================
 def get_best_models():
-    """서버 과부하 대비 최강의 모델 라인업 
-    - 2.0-flash 완전 제거 (Retirement 대비 안정성 확보)
-    - Flash-Lite를 과부하 방어용으로 앞쪽 배치
-    """
     print("🔍 [1/6] 최고 모델 라인업 탐색 중...")
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
-    
-    # 최종 안전망 (2.5 시리즈 고정)
     default_models = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"]
 
     try:
@@ -58,12 +52,11 @@ def get_best_models():
         if not available:
             return default_models
 
-        # 과부하 대비 우선순위 (Lite를 2순위로 전진 배치)
         priorities = [
-            "gemini-2.5-flash",          # 1순위
-            "gemini-2.5-flash-lite",     # 2순위 (과부하 대피소)
-            "gemini-2.5-pro",            # 3순위
-            "gemini-2.5-flash-preview",  # 4순위
+            "gemini-2.5-flash",          
+            "gemini-2.5-flash-lite",     
+            "gemini-2.5-pro",            
+            "gemini-2.5-flash-preview",  
         ]
 
         best_models = []
@@ -96,6 +89,40 @@ def generate_title_variants(keyword):
         f"여행 고수들이 몰래 쓰는 {keyword} 핵심 1가지"
     ]
     return random.choice(variants)
+
+# 🔥 업그레이드 1: SEO 최적화 alt 텍스트 생성기
+def generate_alt_text(keyword, context):
+    variants = [
+        f"{keyword} {context} 설명",
+        f"{keyword} {context} 사용 방법",
+        f"{keyword} {context} 가이드 이미지",
+        f"{keyword} {context} 실제 꿀팁 정리"
+    ]
+    return random.choice(variants)
+
+# 🔥 업그레이드 2: 완벽하지 않게 만들기 (말투 섞기)
+def humanize_text(text):
+    replacements = [
+        ("합니다.", "해요."),
+        ("입니다.", "이죠."),
+        ("중요합니다.", "꽤 중요하더라고요."),
+        ("추천합니다.", "찐으로 추천해요!"),
+        ("좋습니다.", "확실히 편했어요.")
+    ]
+    for a, b in replacements:
+        if random.random() < 0.3:
+            text = text.replace(a, b)
+    return text
+
+# 🔥 업그레이드 3: 문단 호흡 끊기 (리듬 깨기)
+def break_paragraphs(text):
+    sentences = text.split(". ")
+    result = ""
+    for s in sentences:
+        result += s + ". "
+        if random.random() < 0.2:
+            result += "\n\n"  # 랜덤 줄바꿈 추가
+    return result
 
 def get_recent_posts(service, blog_id):
     try:
@@ -254,7 +281,7 @@ def get_naver_target_data():
     return target_query, target_blog_url, scraped_data, title_guide, related_keyword, skeleton_title
 
 # ==================== [4] 유동적 SVG 요약 카드 ====================
-def create_summary_card_tag(summary_list, title):
+def create_summary_card_tag(summary_list, alt_text):
     safe_list = [str(s).strip()[:6] for s in summary_list if s][:3]
     while len(safe_list) < 3: safe_list.append("") 
     svg_code = f"""
@@ -266,13 +293,18 @@ def create_summary_card_tag(summary_list, title):
     </svg>
     """
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
-    return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{title} 핵심 요약"/></div>'
+    return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{alt_text}"/></div>'
 
 # ==================== [5] 원고 생성 (🔥 마크다운 방어 & 순수 HTML 강제) ====================
 def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword, skeleton_title):
     models_to_try = get_best_models() 
 
-    personas = ["가성비 헌터 블로거", "효율 극대화 프로 출장러", "디테일 끝판왕 J형 여행가"]
+    # 🔥 업그레이드 4: 페르소나 다양화 (패턴 깨기)
+    personas = [
+        "가성비 헌터 블로거", "효율 극대화 출장러", "디테일 끝판왕 J형 여행가",
+        "처음 여행하는 사람 시점", "귀찮음 극혐형 인간", "현지인 빙의 여행객",
+        "프로 봇짐러", "사진에 미친 여행자"
+    ]
     current_persona = random.choice(personas)
     recent_posts_str = "\n".join([f"- 제목: {p['title']} (URL: {p['url']})" for p in context_posts])
 
@@ -285,21 +317,36 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 
 [🔥 이번 글의 핵심 메인 테마]: 
 제공된 뼈대 블로그의 제목인 **[{skeleton_title}]**이 다루는 특정 상황, 심층 꿀팁을 이번 포스팅의 핵심 앵글로 삼아라. 
+초반에 반드시 "결론부터 말하면, 이심에서 손해 안 보는 핵심은 단 하나입니다."와 같은 형태로 1가지 명확한 핵심을 던지고 시작하라.
 
 [10개 블로그 분석 데이터]: 
 {scraped_data}
 
 [미션]: 독자가 즉시 '결정'을 하도록 유도하는, 4,000자~6,000자 분량의 초고밀도 전환형 포스팅을 작성하라.
 
-[🔥 핵심 강제 지시사항 - 서식 깨짐 절대 방지]:
-1. **HTML 포맷 강제 (매우 중요)**: 본문 작성 시 `##`, `**`, `*` 같은 마크다운 문법은 절대 금지합니다! 반드시 `<h2>`, `<h3>`, `<p>`, `<strong>`, `<ul>`, `<li>` 등의 완벽한 순수 HTML 태그로만 본문을 구성하세요. 
-2. **문맥형 내부링크**: 오직 본문을 설명하는 문장 중간에 자연스럽게 <a> 태그를 녹여서 [내 블로그 다른 글 리스트] 중 1~2개를 연결하되, 버튼 스타일을 적용하라. (예: <a href='URL' target='_blank' class='int-link'>꿀팁 보기 (🔗관련글)</a>)
-3. **외부 링크**: 구글맵 등 3개 필수 삽입. (예: <a href="URL" target="_blank" class="ext-link">위치 확인 (👉외부링크)</a>)
-4. **결정 버튼**: 본문 맨 마지막에 `<h2>결론: 그래서 뭐 쓰라고? (상황별 추천)</h2>` 태그를 사용해라.
-5. **표(Table)**: 대조가 필요한 정보는 반드시 `<div class="table-wrapper"><table>...</table></div>` 사용.
-6. **SVG 길이**: JSON의 `summary` 단어들은 띄어쓰기 포함 무조건 6글자 이하로 3개 작성.
+[🔥 핵심 강제 지시사항 - 서식 깨짐 절대 방지 및 블로그 최적화]:
+1. **HTML 포맷 및 목차(TOC) 강제**: 
+   - 마크다운(`##`, `**`) 절대 금지! 순수 HTML 태그만 사용.
+   - 본문 최상단에 반드시 `<nav><div class="toc-title">목차</div><ul>...</ul></nav>` 형태의 목차를 작성하라.
+   - 목차의 링크는 `<a href="#sec1">` 처럼 앵커를 달고, 본문의 `<h2>` 태그에 반드시 `<h2 id="sec1">` 처럼 id를 일치시켜라.
+2. **문맥형 내부링크 (자연 삽입 강제)**: 'Related:' 같은 단독 문단 절대 금지. 문장 안에 자연스럽게 끼워 넣어라. (예: 공항에서 시간 낭비 없이 바로 인터넷을 쓰려면 <a href='URL' target='_blank' class='int-link'>인천공항 주차 꿀팁 (🔗관련글)</a>도 같이 알아두는 게 좋습니다.)
+3. **중간 CTA (수익 전환 포인트)**: 본문 중간에 독자가 클릭할 수밖에 없는 제휴/전환용 텍스트 링크(CTA)를 자연스럽게 1개 이상 배치하라. (예: 👉 지금 가장 많이 쓰는 이심 요금제 확인하기)
+4. **초정밀 외부 링크 (3개 이상 필수)**: 
+   - 본문 내용과 100% 일치하는 정확한 구글맵 또는 공식 사이트 URL을 찾아 연결하라.
+   - 포맷 강제: `<a href="정확한URL" target="_blank" class="ext-link">장소/정보 확인하기 <span style="font-size:12px;">(👉클릭하면 이동)</span></a>`
+5. **결정 버튼**: 본문 맨 마지막에 `<h2 id="conclusion">결론: 그래서 뭐 쓰라고? (상황별 추천)</h2>` 태그를 사용해라.
+6. **표(Table)와 리스트(List) 절대 엄수**: 
+   - 장단점이나 비교 정보는 반드시 `<div class="table-wrapper"><table><tr><th>...</th></tr><tr><td>...</td></tr></table></div>` 형태의 완벽한 HTML 표로 작성하라.
+   - 텍스트 나열은 `<p>` 대신 `<ul><li>...</li></ul>`를 적극 활용하라.
+7. **SVG 길이**: JSON의 `summary` 단어들은 띄어쓰기 포함 무조건 6글자 이하로 3개 작성.
 
-[출력 형식 가이드]: 순수 JSON 형식 문자열로만 반환하라.
+[🌟 품질 필터 및 휴먼 톤(Human Tone) 작성 지침]:
+- **기계식 서론 금지**: "오늘은 ~에 대해 알아보겠습니다" 같은 뻔한 AI 멘트 절대 금지. 곧바로 독자의 돈과 시간을 아껴주는 '핵심 혜택'부터 강력하게 던져라.
+- **리얼리티 200% 경험담**: 친한 카페 회원에게 썰을 푸는 듯한 말투(~했어요, ~더라고요, 솔직히 말해서, 찐으로 등) 사용. "제가 지난번에 이거 안 알아보고 갔다가 3만 원 날렸잖아요..." 같은 생생한 경험담과 감정을 녹여라.
+- **완벽한 정보 금지 & 인간적 틈새**: 모든 내용을 백과사전처럼 완벽하게 정리하지 마라. 일부는 경험처럼 자연스럽게 풀고, 한두 문장은 반말 느낌을 섞거나 강조 문장을 짧게 끊어라. 감탄문 1~2개 허용.
+- **이유+결과 공식**: 모든 문장은 "왜?"를 포함하고 단순 설명 대신 "이유+결과"를 적어라. 같은 표현 반복 금지.
+
+[출력 형식 가이드]: 순수 JSON 형식 문자열로만 반환하라. 절대 마크다운 표기를 포함하지 마라.
 JSON Keys: 
 - title: 클릭 유발 자극형 제목
 - meta_desc: 150자 요약
@@ -307,7 +354,7 @@ JSON Keys:
 - slug: 영문 짧은 주소
 - summary: [짧은단어, 짧은단어, 짧은단어] (6글자 이하)
 - map_location: 내용과 연관성 높은 랜드마크
-- content: 반드시 <h2>, <h3>, <p>, <strong>, <ul>, <li> 등 HTML 태그로만 작성된 본문 (## 같은 마크다운 절대 금지)
+- content: 최상단 <nav> 목차와 id가 부여된 <h2> 태그, 완벽한 table/ul 등이 포함된 순수 HTML 본문
 - category: ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"] 중 택1
 """
     payload = {
@@ -393,9 +440,14 @@ def run_automation():
     </div>
     """
     
-    card_tag = create_summary_card_tag(data.get('summary', ["핵심정리", "비용절약", "시간단축"]), data['title'])
+    alt_text = generate_alt_text(keyword, "핵심 요약")
+    card_tag = create_summary_card_tag(data.get('summary', ["핵심정리", "비용절약", "시간단축"]), alt_text)
     
     content = data['content']
+    
+    # 🔥 업그레이드 적용: 사람 냄새 나는 리듬 적용
+    content = humanize_text(content)
+    content = break_paragraphs(content)
 
     # 🔥 AI가 마크다운(##, ***)을 출력했을 경우 강제로 HTML로 변환하는 안전망 추가 (깨짐 방지)
     content = re.sub(r'^##\s+(.+)$', r'<h2>\1</h2>', content, flags=re.MULTILINE)
@@ -412,6 +464,9 @@ def run_automation():
         content = insert_html_at_pos(content, top_insertion, nav_match.end())
     else:
         content = top_insertion + content
+
+    # 🔥 업그레이드 5: 첫 번째 h2 바로 위에도 광고 하나 더 추가 (수익 극대화)
+    content = re.sub(r'(<h2[^>]*>)', ads_code + r'\1', content, count=1)
 
     # 2. 지도 삽입 
     h2_matches = list(re.finditer(r'<h2[^>]*>(.*?)</h2>', content, re.IGNORECASE | re.DOTALL))
@@ -438,7 +493,7 @@ def run_automation():
 
     content += ads_code 
 
-    # 🔥 CSS 에러 완벽 해결 (괄호 모두 {{ }} 로 이중처리 완료)
+    # 🔥 CSS (완벽한 표, 리스트, 목차, 외부/내부 링크 디자인)
     final_html = f"""
     <meta name="description" content="{data.get('meta_desc', '')}">
     <meta name="keywords" content="{data.get('meta_keys', '')}">
@@ -464,7 +519,6 @@ def run_automation():
         .entry-content nav a {{ color: #34495e; text-decoration: none; font-size: 16px; font-weight: 600; border-bottom: 1px dashed #bdc3c7; transition: color 0.3s; }} 
         .entry-content nav a:hover {{ color: #3498db; border-bottom-color: #3498db; }}
         
-       /* 🔥 링크 디자인 에러(color is not defined) 완벽 차단! */
         .entry-content a {{ color: #2980b9; text-decoration: underline; font-weight: bold; transition: all 0.2s; }}
         .entry-content a:hover {{ color: #1f618d; }}
         .ext-link {{ color: #fff !important; background-color: #e67e22; padding: 4px 12px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-bottom: none; }}
@@ -484,9 +538,14 @@ def run_automation():
         
     final_labels = [chosen_category, "여행 꿀팁"]
     
+    # 🔥 업그레이드 6: 업로드 전 시간 랜덤 지연 (사람처럼 보이기)
+    sleep_time = random.randint(180, 600) # 깃허브 타임아웃 방지를 위해 3분~10분 사이로 세팅
+    print(f"⏳ [System] 봇으로 걸리지 않기 위해 {sleep_time}초 대기 후 발행합니다...")
+    time.sleep(sleep_time)
+    
     try:
         slug_text = data.get('slug', 'auto-post')
-        print(f"🚀 [6/6] 업로드 중... ({slug_text})")
+        print(f"🚀 [6/6] 최종 업로드 중... ({slug_text})")
         temp_post = service.posts().insert(blogId=BLOG_ID, body={"title": slug_text, "content": "loading...", "labels": final_labels}, isDraft=False).execute()
         service.posts().patch(blogId=BLOG_ID, postId=temp_post['id'], body={"title": data['title'], "content": final_html, "customMetaData": data.get('meta_desc', '')}).execute() 
         print(f"✨ [완료] {data['title']}")
