@@ -275,7 +275,7 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 [미션]: 독자가 즉시 '결정'을 하도록 유도하는, 4,000자~6,000자 분량의 초고밀도 전환형 포스팅을 작성하라.
 
 [🔥 핵심 강제 지시사항 - 에러 방지 및 신뢰도 폭발]:
-1. **문맥형 내부링크 (매우 중요)**: '관련 글 박스'나 'Related:' 같은 단독 문단을 절대 만들지 마라! 오직 본문을 설명하는 문장 중간에 자연스럽게 <a> 태그를 녹여서 [내 블로그 다른 글 리스트] 중 1~2개를 연결하라. (예: "...이럴 때는 <a href='URL'>미리 예약하는 꿀팁</a>을 참고하면 좋습니다.")
+1. **문맥형 내부링크 (매우 중요)**: '관련 글 박스'나 'Related:' 같은 단독 문단을 절대 만들지 마라! 오직 본문을 설명하는 문장 중간에 자연스럽게 <a> 태그를 녹여서 [내 블로그 다른 글 리스트] 중 1~2개를 연결하되, 반드시 버튼 스타일 클래스와 새창열기를 적용하라. (예: "...이럴 때는 <a href='URL' target='_blank' class='int-link'>미리 예약하는 꿀팁 (🔗관련글 보기)</a>을 참고하면 좋습니다.")
 2. **외부 링크 무조건 3개 이상 강제 삽입 (신뢰도 E-E-A-T)**: 글의 내용과 연관된 유효한 외부 링크를 반드시 3개 이상 본문 적재적소에 배치하라. 아래 형태의 `<a class="ext-link">` 코드를 반드시 써라!
    - 구글맵 검색 링크 (예: <a href="https://www.google.com/maps/search/?api=1&query=신주쿠+교엔" target="_blank" class="ext-link">신주쿠 교엔 위치 확인 (👉외부링크 이동)</a>)
    - 구글 정보 검색 링크 (예: <a href="https://www.google.com/search?q=일본+eSIM+추천" target="_blank" class="ext-link">일본 eSIM 최신 할인 정보 검색 (👉외부링크 이동)</a>)
@@ -436,12 +436,14 @@ def run_automation():
         .entry-content nav a {{ color: #34495e; text-decoration: none; font-size: 16px; font-weight: 600; border-bottom: 1px dashed #bdc3c7; transition: color 0.3s; }} 
         .entry-content nav a:hover {{ color: #3498db; border-bottom-color: #3498db; }}
         
-        /* 🔥 링크 디자인 완벽 분리 */
-        .entry-content a {{ color: #2980b9; text-decoration: underline; font-weight: bold; transition: all 0.2s; }}
-        .entry-content a:hover {{ color: #1f618d; }}
-        .ext-link {{ color: #fff !important; background-color: #e67e22; padding: 4px 12px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-bottom: none; }}
-        .ext-link:hover {{ background-color: #d35400; }}
-        .anchor-link {{ color: #27ae60 !important; background-color: #eafaf1; padding: 4px 10px; border-radius: 6px; text-decoration: none !important; font-size: 16px; display: inline-block; margin: 5px 0; border: 1px solid #2ecc71; }}
+       /* 🔥 링크 디자인 완벽 분리 */
+        .entry-content a { color: #2980b9; text-decoration: underline; font-weight: bold; transition: all 0.2s; }
+        .entry-content a:hover { color: #1f618d; }
+        .ext-link { color: #fff !important; background-color: #e67e22; padding: 4px 12px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-bottom: none; }
+        .ext-link:hover { background-color: #d35400; }
+        .int-link { color: #fff !important; background-color: #3498db; padding: 4px 12px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-bottom: none; }
+        .int-link:hover { background-color: #2980b9; }
+        .anchor-link { color: #27ae60 !important; background-color: #eafaf1; padding: 4px 10px; border-radius: 6px; text-decoration: none !important; font-size: 16px; display: inline-block; margin: 5px 0; border: 1px solid #2ecc71; }
         
         .entry-content .intro {{ background: #f0f7ff; padding: 18px 22px; border-radius: 10px; border-left: 6px solid #3498db; margin-bottom: 30px; font-weight: bold; font-size: 17px; line-height: 1.7; }} 
     </style>
