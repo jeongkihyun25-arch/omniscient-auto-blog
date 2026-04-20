@@ -46,8 +46,8 @@ def get_best_model():
         res = requests.get(url, timeout=15).json()
         available = [m['name'].replace('models/', '') for m in res.get('models', [])
                      if 'generateContent' in m.get('supportedGenerationMethods', [])]
-        # 🔥 1.5 모델 완전 삭제. 2.0 시리즈와 flash 최신버전만 우선순위로 둠
-        priorities = ["gemini-2.0-pro", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+        # 🔥 429 에러(과부하)를 유발하는 lite 모델 대신, 가장 안정적이고 똑똑한 정통 flash 및 pro 모델 최우선 탐색
+        priorities = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
         for p in priorities:
             for m in available:
                 if p in m: return m
@@ -181,7 +181,7 @@ def get_naver_target_data():
     valid_links = []
     scraped_data = ""
     target_blog_url = ""
-    skeleton_title = "" # 🔥 뼈대 블로그 제목 저장용
+    skeleton_title = "" 
 
     try:
         url = f"https://search.naver.com/search.naver?ssc=tab.blog.all&query={urllib.parse.quote(actual_search_query)}"
@@ -210,7 +210,7 @@ def get_naver_target_data():
 
         if selected_links:
             target_blog_url = selected_links[0]['url'] 
-            skeleton_title = selected_links[0]['title'] # 뼈대 제목 추출
+            skeleton_title = selected_links[0]['title'] 
             print(f"🔍 [3/6] 총 {len(selected_links)}개 블로그 추출 중... (뼈대: {skeleton_title})")
             
             for i, item in enumerate(selected_links):
@@ -307,8 +307,11 @@ JSON Keys: title, meta_desc, meta_keys, slug, summary (이모지+짧은단어 3�
             return data
             
         except Exception as e: 
-            print(f"⚠️ 제미나이 API 호출 오류: {e}")
-            time.sleep(5)
+            # 🔥 429(Too Many Requests), 503(Service Unavailable) 에러 대응 지수 백오프 로직
+            wait_time = 15 * (attempt + 1)
+            print(f"⚠️ 제미나이 API 호출 오류 발생: {e}")
+            print(f"⏳ 트래픽 제한(429/503) 회피를 위해 {wait_time}초 대기 후 재시도합니다...")
+            time.sleep(wait_time)
             
     return None
 
@@ -354,7 +357,7 @@ def run_automation():
     map_html = create_map_embed(location)
     print(f"🗺️ [System] '{location}' 기반 구글맵 코드를 생성했습니다.")
 
-    # 하단 보조용 관련글 (깨지는 디자인 수정 완료)
+    # 하단 보조용 관련글
     related_html = ""
     if context_posts:
         related_html = "<div class='related-posts-container'><h3>📌 같이 보면 돈이 되는 글</h3><ul>"
@@ -384,10 +387,8 @@ def run_automation():
     map_inserted = False
     location_keywords = ["위치", "공항", "지도", "가는", "어디", location]
     
-    # 텍스트를 기준으로 찾아서 그 위에 있는 h2 다음에 넣거나, 안전하게 문자열 치환
     for match in h2_matches:
         h2_tag = match.group(0)
-        # h2 태그의 텍스트 콘텐츠 추출 (정규식 응용)
         tag_end = content.find('</h2>', match.end())
         if tag_end != -1:
             h2_content = content[match.start():tag_end+5]
@@ -398,11 +399,10 @@ def run_automation():
                 
     if not map_inserted and len(h2_matches) > 0:
         target_h2 = h2_matches[1].group(0) if len(h2_matches) > 1 else h2_matches[0].group(0)
-        # 안전한 치환을 위해 정규식 사용
         content = re.sub(r'(' + re.escape(target_h2) + r'.*?</h2>)', r'\1' + map_html, content, count=1, flags=re.DOTALL)
 
-    # 3. 광고 삽입 (🔥 html 태그가 박살나지 않도록 split 대신 regex 사용)
-    content = re.sub(r'(<h2[^>]*>)', ads_code + r'\1', content, count=1) # 첫 h2 위
+    # 3. 광고 삽입 (안전한 치환)
+    content = re.sub(r'(<h2[^>]*>)', ads_code + r'\1', content, count=1) 
     
     h2_matches = list(re.finditer(r'<h2[^>]*>', content, re.IGNORECASE))
     if len(h2_matches) >= 3:
@@ -418,9 +418,9 @@ def run_automation():
     else:
         content += related_html
 
-    content += ads_code # 맨 마지막
+    content += ads_code 
 
-    # 🔥 CSS (글자 크기 일관성, 링크 디자인 명확화)
+    # 🔥 CSS 적용
     final_html = f"""
     <meta name="description" content="{data.get('meta_desc', '')}">
     <meta name="keywords" content="{data.get('meta_keys', '')}">
@@ -455,7 +455,7 @@ def run_automation():
         
         .entry-content .intro {{ background: #f0f7ff; padding: 18px 22px; border-radius: 10px; border-left: 6px solid #3498db; margin-bottom: 30px; font-weight: bold; font-size: 17px; line-height: 1.7; }} 
         
-        /* 🔥 같이 보면 돈이 되는 글 박스 수정 (그래픽 깨짐 해결) */
+        /* 🔥 같이 보면 돈이 되는 글 박스 수정 */
         .related-posts-container {{ background: #f8f9fa; padding: 25px; border-radius: 12px; border: 2px solid #3498db; margin: 40px 0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }} 
         .related-posts-container h3 {{ margin-top: 0; color: #e74c3c; font-size: 20px !important; border-bottom: 2px dashed #eee; margin-bottom: 15px; padding-bottom: 10px; }} 
         .related-posts-container ul {{ background: transparent; border: none; padding: 0; margin: 0; list-style: none; }}
