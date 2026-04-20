@@ -271,8 +271,8 @@ def create_summary_card_tag(summary_list, title):
 
 # ==================== [5] 원고 생성 (🔥 문맥 링크, 지능형 장소 반환, 외부링크 강제) ====================
 def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword, skeleton_title):
-    model_name = get_best_model()
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+    # 1. 모델 리스트를 먼저 확보합니다. (복수형 s 확인 완료)
+    models_to_try = get_best_models() 
 
     personas = ["가성비 헌터 블로거", "효율 극대화 프로 출장러", "디테일 끝판왕 J형 여행가"]
     current_persona = random.choice(personas)
@@ -314,31 +314,43 @@ JSON Keys:
 - content: HTML 본문
 - category: 다음 중 택1 ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"]
 """
-    payload = {
+     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"responseMimeType": "application/json"}
     }
-    
-    max_retries = 3
-    for attempt in range(max_retries):
+
+   # 2. 🔥 모델 리스트를 하나씩 순회하며 시도합니다.
+    for attempt, model_name in enumerate(models_to_try, 1):
+        
+        # ✅ [이 줄이 반드시 여기에 있어야 합니다!] 
+        # 루프 안에서 매번 'model_name'을 받아와서 주소를 생성해야 합니다.
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+        
         try:
-            print(f"✍️ [4/6] {current_persona} 모드로 4~6천자 초고밀도 원고 생성 중... (시도 {attempt + 1})")
+            print(f"✍️ [4/6] 시도 {attempt}: {model_name} 모델 사용 중...")
             res = requests.post(api_url, json=payload, timeout=180)
-            res.raise_for_status()
+            res.raise_for_status() 
             
             raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
             raw_text = raw_text.replace("```json", "").replace("```", "").strip()
             
             data = json.loads(raw_text)
             data['used_references'] = [target_blog_url]
-            return data
+            return data # 성공 시 즉시 반환하며 종료
             
-        except Exception as e: 
-            wait_time = 15 * (attempt + 1)
-            print(f"⚠️ 제미나이 API 호출 오류 발생: {e}")
-            print(f"⏳ 트래픽 제한(429/503) 회피를 위해 {wait_time}초 대기 후 재시도합니다...")
-            time.sleep(wait_time)
-            
+        except Exception as e:
+            # 서버 과부하(503)나 요청제한(429) 시 대기 후 다음 모델로 이동
+            if "503" in str(e) or "429" in str(e) or "unavailable" in str(e).lower():
+                wait_time = 8 * attempt 
+                print(f"⚠️ {model_name} 과부하 감지 → {wait_time}초 대기 후 다음 모델로 전환합니다.")
+                time.sleep(wait_time)
+                continue # 다음 모델로 루프 재시작
+            else:
+                print(f"🚨 모델 에러 ({model_name}): {e}")
+                time.sleep(5)
+                continue
+
+    print("❌ 모든 모델 시도가 실패했습니다.")
     return None
 
 # ==================== [6] 메인 실행 (🔥 로직 최적화) ====================
