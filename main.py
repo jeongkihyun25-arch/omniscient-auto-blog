@@ -534,6 +534,9 @@ def run_automation():
     print(f"⏳ [System] 봇으로 걸리지 않기 위해 {sleep_time}초 대기 후 발행합니다...")
     time.sleep(sleep_time)
     
+    # 🔥 이 한 줄만 추가하세요! (8분 쉬어서 끊어진 연결을 다시 붙이는 겁니다)
+    service = build('blogger', 'v3', credentials=creds)
+    
     try:
         slug_text = data.get('slug', 'auto-post')
         print(f"🚀 [6/6] 최종 업로드 중... ({slug_text})")
