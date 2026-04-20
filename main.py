@@ -63,12 +63,13 @@ def get_best_models():
         seen = set()
         for p in priorities:
             for m in available:
-                if p in m and m not in seen:
+                # 🔥 여기서 음성(tts), 이미지(image), 임베딩 모델 강제 배제! 오직 텍스트 모델만 가져옵니다.
+                if p in m and "tts" not in m and "image" not in m and "embedding" not in m and m not in seen:
                     best_models.append(m)
                     seen.add(m)
 
         if best_models:
-            print(f"✅ 선택된 모델 리스트: {best_models[:5]}")
+            print(f"✅ 선택된 텍스트 전용 모델 리스트: {best_models[:5]}")
             return best_models
 
         return default_models
@@ -378,7 +379,8 @@ JSON Keys:
             
         except Exception as e:
             if "503" in str(e) or "429" in str(e) or "unavailable" in str(e).lower():
-                wait_time = 8 * attempt 
+                # 🔥 과부하 대기 시간 약간 늘림 (서버 리셋 여유 확보)
+                wait_time = 15 * attempt 
                 print(f"⚠️ {model_name} 과부하 감지 → {wait_time}초 대기 후 다음 모델로 전환합니다.")
                 time.sleep(wait_time)
                 continue 
