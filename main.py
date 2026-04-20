@@ -63,7 +63,6 @@ def get_best_models():
         seen = set()
         for p in priorities:
             for m in available:
-                # 🔥 여기서 음성(tts), 이미지(image), 임베딩 모델 강제 배제! 오직 텍스트 모델만 가져옵니다.
                 if p in m and "tts" not in m and "image" not in m and "embedding" not in m and m not in seen:
                     best_models.append(m)
                     seen.add(m)
@@ -91,7 +90,6 @@ def generate_title_variants(keyword):
     ]
     return random.choice(variants)
 
-# 🔥 업그레이드 1: SEO 최적화 alt 텍스트 생성기
 def generate_alt_text(keyword, context):
     variants = [
         f"{keyword} {context} 설명",
@@ -101,7 +99,6 @@ def generate_alt_text(keyword, context):
     ]
     return random.choice(variants)
 
-# 🔥 업그레이드 2: 완벽하지 않게 만들기 (말투 섞기)
 def humanize_text(text):
     replacements = [
         ("합니다.", "해요."),
@@ -115,14 +112,13 @@ def humanize_text(text):
             text = text.replace(a, b)
     return text
 
-# 🔥 업그레이드 3: 문단 호흡 끊기 (리듬 깨기)
 def break_paragraphs(text):
     sentences = text.split(". ")
     result = ""
     for s in sentences:
         result += s + ". "
         if random.random() < 0.2:
-            result += "\n\n"  # 랜덤 줄바꿈 추가
+            result += "\n\n"  
     return result
 
 def get_recent_posts(service, blog_id):
@@ -296,7 +292,7 @@ def create_summary_card_tag(summary_list, alt_text):
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
     return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{alt_text}"/></div>'
 
-# ==================== [5] 원고 생성 (🔥 JSON 에러 방어 및 극한의 서식 최적화) ====================
+# ==================== [5] 원고 생성 ====================
 def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword, skeleton_title):
     models_to_try = get_best_models() 
 
@@ -331,9 +327,12 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
    - 목차의 링크는 `<a href='#sec1'>` 형태로 앵커를 달고, 본문의 소제목 <h2> 태그에는 반드시 `<h2 id='sec1'>` 처럼 id를 일치시켜 클릭 시 정확히 이동하게 하라.
 2. **문맥형 내부링크 (자연 삽입 강제)**: 'Related:' 같은 단독 문단 금지. 문장 안에 자연스럽게 버튼 스타일을 적용해라. (예: <a href='URL' target='_blank' class='int-link'>꿀팁 알아보기 (🔗관련글)</a>)
 3. **중간 CTA (수익 전환 포인트)**: 본문 중간에 클릭을 유도하는 링크를 1개 이상 배치하라. (예: 👉 지금 가장 많이 쓰는 요금제 확인하기)
-4. **초정밀 외부 링크 (5개 이상 필수)**: 
-   - 내용과 연관된 구글맵, 공식 사이트 링크를 5개 이상 본문에 삽입하라.
-   - 포맷 무조건 강제: `<a href='정확한URL' target='_blank' class='ext-link'>장소/정보 확인하기 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
+
+4. **🔥무조건 접속되는 안전한 외부 링크 (3개 정도만)**: 
+   - 가짜 URL(없는 공식 홈페이지 등)로 연결되어 에러가 나는 것을 방지하기 위해, 모든 외부 링크의 URL은 **반드시 구글 검색 결과 URL** 또는 **구글 맵 검색 URL**만 사용하라.
+   - 장소 검색 예시: `<a href='https://www.google.com/maps/search/?api=1&query=검색할+장소명' target='_blank' class='ext-link'>장소 구글맵 확인 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
+   - 정보 검색 예시: `<a href='https://www.google.com/search?q=검색할+단어+조합' target='_blank' class='ext-link'>최신 정보 구글 검색하기 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
+
 5. **결정 버튼**: 본문 맨 마지막에 `<h2 id='conclusion'>결론: 그래서 뭐 쓰라고? (상황별 추천)</h2>` 태그를 사용해라.
 6. **표(Table)와 리스트(List) 절대 엄수**: 
    - 비교/정리 정보는 반드시 `<div class='table-wrapper'><table><tr><th>...</th></tr><tr><td>...</td></tr></table></div>` 형태의 HTML 표로 작성하라.
