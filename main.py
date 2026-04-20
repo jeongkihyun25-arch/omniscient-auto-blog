@@ -83,7 +83,6 @@ def get_related_posts_by_keyword(posts, keyword):
     first_word = keyword.split()[0]
     return [p for p in posts if first_word in p['title']]
 
-# 🔥 수정: 여행지와 무관한 키워드일 경우 무조건 "인천공항"으로 강제 폴백하여 어색함 방지
 def extract_location_keyword(keyword):
     locations = ["일본", "도쿄", "오사카", "후쿠오카", "삿포로", "오키나와",
                  "베트남", "다낭", "나트랑", "호찌민", "푸꾸옥",
@@ -94,7 +93,6 @@ def extract_location_keyword(keyword):
         if loc in keyword: return loc
     return "인천공항"
 
-# 🔥 수정: 텍스트를 파란색 클릭 가능한 버튼형 앵커로 만들어 새창 열기 적용
 def create_map_embed(location):
     search_term = f"{location} 공항" if location not in ["인천공항", "김포공항"] else location
     query = urllib.parse.quote(search_term)
@@ -111,7 +109,7 @@ def create_map_embed(location):
     </div>
     '''
 
-# ==================== [3] 네이버 수집 (🔥 15개 중 10개 믹스 유지) ====================
+# ==================== [3] 네이버 수집 ====================
 def get_naver_target_data():
     now = datetime.now()
     COUNTRY_GROUPS = [
@@ -172,7 +170,7 @@ def get_naver_target_data():
     search_suffix = [" 장단점", " 설정 오류", " 아이폰 꿀팁", " 실제 후기", " 주의사항"]
     actual_search_query = f"{target_query}{random.choice(search_suffix)}"
     
-    print(f"🎯 [2/6] 키워드: {target_query} (검색어: {actual_search_query})")
+    print(f"🎯 [2/6] 키워드: {target_query} (검색어: {actual_search_query} / 브릿지 연결: {related_keyword})")
 
     options = Options()
     options.add_argument("--headless")
@@ -201,7 +199,6 @@ def get_naver_target_data():
                     valid_links.append({"title": title, "url": clean_url})
             if len(valid_links) >= 15: break
 
-        # 15개 중 10개 믹스
         if len(valid_links) >= 5:
             main_idx = random.randint(0, min(2, len(valid_links)-1))
             main_link = valid_links.pop(main_idx)
@@ -232,22 +229,23 @@ def get_naver_target_data():
     finally: driver.quit()
     return target_query, target_blog_url, scraped_data, title_guide, related_keyword
 
-# ==================== [4] 유동적 SVG 요약 카드 ====================
+# ==================== [4] 유동적 SVG 요약 카드 (🔥 깨짐 현상 완벽 해결) ====================
 def create_summary_card_tag(summary_list, title):
     safe_list = [str(s).strip()[:15] for s in summary_list if s][:3]
     while len(safe_list) < 3: safe_list.append("") 
+    # viewBox를 사용하여 반응형으로 텍스트가 잘리지 않게 조정, 위치(y) 및 중앙 정렬 옵션 강화
     svg_code = f"""
-    <svg width="600" height="230" xmlns="http://www.w3.org/2000/svg">
-      <rect width="600" height="230" fill="#FFF9C4" rx="20"/>
-      <text x="50%" y="70" font-family="'Apple Color Emoji', 'Segoe UI Emoji', 'Malgun Gothic', sans-serif" font-weight="bold" font-size="30" text-anchor="middle" fill="#2c3e50">{safe_list[0]}</text>
-      <text x="50%" y="130" font-family="'Apple Color Emoji', 'Segoe UI Emoji', 'Malgun Gothic', sans-serif" font-weight="bold" font-size="30" text-anchor="middle" fill="#2c3e50">{safe_list[1]}</text>
-      <text x="50%" y="190" font-family="'Apple Color Emoji', 'Segoe UI Emoji', 'Malgun Gothic', sans-serif" font-weight="bold" font-size="30" text-anchor="middle" fill="#2c3e50">{safe_list[2]}</text>
+    <svg width="100%" height="200" viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg">
+      <rect width="600" height="200" fill="#FFF9C4" rx="15"/>
+      <text x="50%" y="65" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif" font-weight="bold" font-size="24" text-anchor="middle" fill="#2c3e50">{safe_list[0]}</text>
+      <text x="50%" y="110" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif" font-weight="bold" font-size="24" text-anchor="middle" fill="#2c3e50">{safe_list[1]}</text>
+      <text x="50%" y="155" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif" font-weight="bold" font-size="24" text-anchor="middle" fill="#2c3e50">{safe_list[2]}</text>
     </svg>
     """
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
-    return f'<div style="text-align:center; margin:40px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px;" alt="{title}"/></div>'
+    return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{title} 핵심 요약"/></div>'
 
-# ==================== [5] 원고 생성 (🔥 3대 링크 분리 + 4000자 초고밀도 + 주제 중복 방지) ====================
+# ==================== [5] 원고 생성 (🔥 디자인 가이드 강화 & 주제 중복 차단) ====================
 def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword):
     model_name = get_best_model()
     api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
@@ -266,28 +264,29 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 [10개 블로그 분석 데이터]: 
 {scraped_data}
 
-[미션]: 독자가 즉시 '결정'을 하도록 유도하는, 최소 4,000자 이상의 '밀도 높은' 99점짜리 전환형 포스팅을 작성하라. 
-단, 이전 글들과 주제가 겹치지 않게 [분석 데이터]를 바탕으로 이번 글만의 독창적인 새로운 꿀팁/앵글을 반드시 하나 이상 추가해라.
+[미션]: 독자가 즉시 '결정'을 하도록 유도하는, 최소 4,000자에서 6,000자 분량의 '밀도 높은' 전환형 포스팅을 작성하라.
 
-[🔥 UX 및 시각적 디자인 강제 지시사항 - 스크린샷 에러 완벽 해결]:
+[🔥 주제 중복 금지 및 새로운 앵글 (매우 중요!)]:
+위 [내 블로그 다른 글 리스트]의 제목들을 반드시 확인해라. 이미 다룬 뻔한 내용(예: 기본 사용법, 단순 개통 방법)을 또 쓰지 마라! 이번 글은 [분석 데이터]를 활용하여 '속도/안정성 도시별 비교', '가장 치명적인 오류 해결법', '기기별(아이폰/갤럭시) 주의사항' 등 **기존 글과 겹치지 않는 완전 새로운 심화 앵글(Niche)**로 비틀어서 작성하라. 
+
+[🔥 UX 및 시각적 디자인 강제 지시사항 - 절대 엄수]:
 1. **목차 양식 고정**: 서론 직후 목차 작성 시, 반드시 `<nav><div class="toc-title">📑 목차 (클릭 시 바로 이동)</div><ul>...` 로 작성하라.
 2. **링크 디자인의 3원칙 (가장 중요 - 무조건 지킬 것)**:
-   - **외부 링크 (E-E-A-T용 3개 필수)**: 구글맵 1개, 공식 판매/예약처 1개, 공식 통신사 1개를 넣되, 반드시 아래 포맷 사용! 
-     `<a href="URL" target="_blank" class="ext-link">텍스트 (👉외부링크 이동)</a>`
-   - **내부 앵커 링크 (본문 내 스크롤 이동)**: 표나 특정 내용으로 독자를 안내할 때 사용!
+   - **외부 링크 (E-E-A-T용 3개 필수)**: 구글맵 1개, 공식 판매/예약처 1개, 공식 통신사 1개를 넣되, 반드시 버튼처럼 보이도록 CSS 클래스를 적용하라! 
+     `<a href="URL" target="_blank" class="ext-link">원하는 텍스트 (👉외부링크 이동)</a>`
+   - **내부 앵커 링크 (본문 내 스크롤 이동)**: 표나 특정 내용으로 안내할 때 사용!
      `<a href="#해당섹션id" class="anchor-link">👉 아래 비교표 클릭해서 확인하기</a>`
-   - **관련 글 링크 금지**: "Related: 아고다 항공권..." 처럼 단독 문단으로 블록을 띄우지 마라! 무조건 문장 속에 자연스럽게 녹여라.
-3. **표(Table) 깨짐 방지**: 표를 만들 때는 짤리지 않게 반드시 `<div class="table-wrapper"><table>...</table></div>`로 감싸라. 
+   - **관련 글 링크 금지어**: "Related: ~" 처럼 문단을 새로 파서 링크만 덜렁 적지 마라! 무조건 문장을 전개하는 **글 중간에 자연스럽게 <a> 태그를 녹여서** 링크하라.
+3. **표(Table) 깨짐 방지**: 'A vs B 요금 비교', '도시별 속도 비교' 등 대조가 필요한 정보는 줄글로 쓰지 말고 **무조건 <table> 표를 사용하여 한눈에 띄게 정리**하라. 단, 모바일에서 깨지지 않게 표는 반드시 `<div class="table-wrapper"><table>...</table></div>` 코드로 감싸라.
 
 [🔥 내용 작성 지시사항]:
 1. **후킹**: 첫 문장에는 "손해", "시간", "돈" 중 하나를 포함하라. 서론 직후 "결론부터 말하면, 핵심은 단 하나입니다: ~" 로 요약하라.
-2. **중간 CTA**: 본문 중간에 독자의 행동을 유도하는 눈에 띄는 텍스트 링크(CTA)를 넣어라.
-3. **결정 버튼**: 마지막에 '<h3>결론: 그래서 뭐 쓰라고? (상황별 추천)</h3>' 섹션을 무조건 넣어 상황별 정답을 내려라.
-4. **숫자 활용**: 비용(원)과 시간(분)을 숫자로 비교하여 손해 회피 심리를 자극하라.
-5. **동적 id 생성**: <h2>의 id는 문맥 영단어(예: id="esim-plan-compare")로 매번 다르게 생성하라.
+2. **결정 버튼**: 마지막에 '<h3>결론: 그래서 뭐 쓰라고? (상황별 추천)</h3>' 섹션을 무조건 넣어 상황별 정답을 내려라.
+3. **숫자 활용**: 비용(원)과 시간(분)을 숫자로 뚜렷하게 비교하라.
+4. **동적 id 생성**: <h2>의 id는 문맥 영단어(예: id="city-speed-compare")로 매번 다르게 생성하라.
 
 [출력 형식 가이드]: 순수 JSON 형식 문자열로만 반환하라. 절대 마크다운 표기(```json)를 포함하지 마라.
-JSON Keys: title, meta_desc, meta_keys, slug, summary (이모지+단어 3개), content (HTML 본문), category
+JSON Keys: title, meta_desc, meta_keys, slug, summary (이모지+짧은단어 3개 리스트), content (HTML 본문), category
 """
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -297,7 +296,7 @@ JSON Keys: title, meta_desc, meta_keys, slug, summary (이모지+단어 3개), c
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            print(f"✍️ [4/6] {current_persona} 모드로 4,000자 이상 초고밀도 원고 생성 중... (시도 {attempt + 1})")
+            print(f"✍️ [4/6] {current_persona} 모드로 4~6천자 초고밀도 UX/UI 최적화 원고 생성 중... (시도 {attempt + 1})")
             res = requests.post(api_url, json=payload, timeout=180)
             res.raise_for_status()
             
@@ -351,7 +350,7 @@ def run_automation():
             f.write("\n" + keyword)
         return
 
-    # 🔥 지도 생성 (무관한 키워드는 인천공항으로 강제 폴백 적용됨)
+    # 🔥 지도 생성 
     location = extract_location_keyword(keyword)
     map_html = create_map_embed(location)
     print(f"🗺️ [System] '{location}' 기반 구글맵 코드를 생성했습니다.")
@@ -413,47 +412,51 @@ def run_automation():
 
     content = content + ads_code 
 
-    # 🔥 표 찌그러짐, 리스트, 앵커 링크 스타일 완벽 수정
+    # 🔥 CSS 대폭 수정 (시인성 극대화: 외부링크, 앵커, 표, 리스트, 목차, 폰트크기 고정)
     final_html = f"""
     <meta name="description" content="{data.get('meta_desc', '')}">
     <meta name="keywords" content="{data.get('meta_keys', '')}">
     <style>
         html {{ scroll-behavior: smooth; }} 
-        .entry-content {{ font-size: 18px; line-height: 2.1; color: #333; font-family: 'Malgun Gothic', sans-serif; word-break: keep-all; }} 
-        .entry-content h2 {{ font-size: 26px; color: #2c3e50; border-left: 8px solid #3498db; padding-left: 15px; margin: 50px 0 20px; background: #f9f9f9; padding-top: 8px; padding-bottom: 8px; scroll-margin-top: 120px; }} 
-        .entry-content h3 {{ font-size: 22px; color: #2980b9; border-bottom: 2px solid #3498db; padding-bottom: 8px; margin: 35px 0 20px; scroll-margin-top: 120px; }} 
-        .entry-content p {{ margin-bottom: 25px; }} 
+        .entry-content {{ font-size: 16px; line-height: 1.8; color: #333; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; word-break: keep-all; }} 
+        .entry-content h2 {{ font-size: 24px; color: #2c3e50; border-left: 6px solid #3498db; padding: 8px 15px; margin: 45px 0 20px; background: #f8f9fa; scroll-margin-top: 100px; }} 
+        .entry-content h3 {{ font-size: 20px; color: #2980b9; border-bottom: 2px solid #3498db; padding-bottom: 8px; margin: 30px 0 15px; scroll-margin-top: 100px; }} 
+        .entry-content p {{ margin-bottom: 20px; font-size: 16px; }} 
         
-        /* 🔥 표 찌그러짐 방지 Wrapper */
-        .table-wrapper {{ width: 100%; overflow-x: auto; margin: 30px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-radius: 8px; }}
-        .entry-content table {{ width: 100%; min-width: 600px; border-collapse: collapse; border: 1px solid #ddd; background: #fff; }} 
-        .entry-content th {{ background: #3498db; color: white; padding: 15px; border: 1px solid #2980b9; font-weight:bold; white-space: nowrap; }} 
-        .entry-content td {{ border: 1px solid #ddd; padding: 15px; text-align: left; vertical-align: middle; }} 
+        /* 🔥 표 시인성 강화 & 찌그러짐 방지 */
+        .table-wrapper {{ width: 100%; overflow-x: auto; margin: 25px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-radius: 8px; }}
+        .entry-content table {{ width: 100%; min-width: 500px; border-collapse: collapse; background: #fff; font-size: 15px; }} 
+        .entry-content th {{ background: #3498db; color: white; padding: 12px; border: 1px solid #2980b9; font-weight:bold; white-space: nowrap; }} 
+        .entry-content td {{ border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: middle; }} 
         
         /* 🔥 리스트 시인성 강화 */
-        .entry-content ul {{ background: #fdfdfd; border-radius: 8px; padding: 25px 25px 25px 45px; border: 1px solid #eee; margin: 25px 0; box-sizing: border-box; }}
-        .entry-content li {{ margin-bottom: 12px; }}
+        .entry-content ul {{ background: #fdfdfd; border-radius: 8px; padding: 20px 20px 20px 40px; border: 1px solid #eee; margin: 20px 0; }}
+        .entry-content li {{ margin-bottom: 10px; font-size: 16px; line-height: 1.7; }}
         
-        /* 🔥 목차 스타일 */
-        .entry-content nav {{ background: #f8f9fa; padding: 25px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 30px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }} 
-        .toc-title {{ font-size: 20px; font-weight: bold; color: #2c3e50; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 8px; }}
-        .entry-content nav ul {{ background: transparent; border: none; padding: 0; box-shadow: none; margin: 0; list-style: none; }} 
-        .entry-content nav a {{ color: #2980b9; text-decoration: none; font-weight: bold; font-size: 19px; }} 
+        /* 🔥 목차 스타일 (형광색 제거, 다크 네이비로 깔끔하게) */
+        .entry-content nav {{ background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 30px; }} 
+        .toc-title {{ font-size: 18px; font-weight: bold; color: #2c3e50; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 8px; }}
+        .entry-content nav ul {{ background: transparent; border: none; padding: 0; margin: 0; list-style: none; }} 
+        .entry-content nav li {{ margin-bottom: 10px; }}
+        .entry-content nav a {{ color: #34495e; text-decoration: none; font-size: 16px; font-weight: 600; border-bottom: 1px dashed #bdc3c7; transition: color 0.3s; }} 
+        .entry-content nav a:hover {{ color: #3498db; border-bottom-color: #3498db; }}
         
-        /* 🔥 링크 디자인 3원칙 (일반, 외부, 앵커 완벽 분리) */
-        .entry-content a {{ color: #2980b9; text-decoration: none; font-weight: bold; transition: all 0.3s; }}
-        .entry-content a:hover {{ color: #e74c3c; }}
-        .ext-link {{ color: #d35400 !important; background-color: #fdf2e9; padding: 3px 8px; border-radius: 6px; text-decoration: underline !important; display: inline-block; margin: 5px 0; }}
-        .anchor-link {{ color: #27ae60 !important; background-color: #eafaf1; padding: 3px 8px; border-radius: 6px; text-decoration: underline !important; font-size: 19px; display: inline-block; margin: 5px 0; }}
+        /* 🔥 링크 디자인 3원칙 완벽 분리 */
+        .entry-content a {{ color: #2980b9; text-decoration: underline; font-weight: bold; }}
+        .ext-link {{ color: #fff !important; background-color: #e67e22; padding: 4px 10px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+        .ext-link:hover {{ background-color: #d35400; }}
+        .anchor-link {{ color: #27ae60 !important; text-decoration: underline !important; font-size: 16px; display: inline-block; margin: 5px 0; }}
         
-        .entry-content .intro {{ background: #f0f7ff; padding: 18px 22px; border-radius: 10px; border-left: 6px solid #3498db; margin-bottom: 30px; font-weight: bold; font-size: 19px; line-height: 1.7; }} 
+        .entry-content .intro {{ background: #f0f7ff; padding: 18px 22px; border-radius: 10px; border-left: 6px solid #3498db; margin-bottom: 30px; font-weight: bold; font-size: 17px; line-height: 1.7; }} 
         
-        /* 🔥 같이 보면 돈이 되는 글 박스 수정 (점선 에러 해결) */
-        .related-posts-container {{ background: #fdfdfd; padding: 25px; border-radius: 12px; border: 2px solid #3498db; margin: 40px 0; display: block; overflow: hidden; }} 
-        .related-posts-container h3 {{ margin-top: 0; color: #e74c3c; font-size: 21px; margin-bottom: 20px; border-bottom: none; }} 
+        /* 🔥 같이 보면 돈이 되는 글 박스 수정 */
+        .related-posts-container {{ background: #fff; padding: 20px; border-radius: 12px; border: 2px solid #3498db; margin: 40px 0; }} 
+        .related-posts-container h3 {{ margin-top: 0; color: #e74c3c; font-size: 19px; border:none; margin-bottom:15px; padding:0; }} 
         .related-posts-container ul {{ background: transparent; border: none; padding: 0; margin: 0; list-style: none; }}
-        .related-posts-container li {{ margin-bottom: 12px; padding-left: 25px; position: relative; font-size: 18px; }}
+        .related-posts-container li {{ margin-bottom: 10px; padding-left: 25px; position: relative; font-size: 16px; }}
         .related-posts-container li:before {{ content: '👉'; position: absolute; left: 0; top: 0; }}
+        .related-posts-container a {{ color: #2c3e50; text-decoration: none; }}
+        .related-posts-container a:hover {{ color: #3498db; text-decoration: underline; }}
         b {{ color: #e74c3c; }}
     </style>
     <div class="entry-content">{content}</div>
