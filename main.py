@@ -162,9 +162,11 @@ def break_paragraphs(text):
             result += "\n\n"  
     return result
 
+# 기존 get_recent_posts 함수 전체를 이걸로 교체하세요.
 def get_recent_posts(service, blog_id):
     try:
-        posts = service.posts().list(blogId=blog_id, maxResults=10, fetchBodies=False).execute()
+        # 🔥 최근 40개의 글을 가져와서 중복을 피합니다!
+        posts = service.posts().list(blogId=blog_id, maxResults=40, fetchBodies=False).execute()
         return [{"title": p["title"], "url": p["url"]} for p in posts.get("items", [])]
     except Exception as e:
         print(f"⚠️ 내부링크 수집 실패: {e}")
@@ -198,13 +200,15 @@ def insert_html_at_pos(html_content, insert_str, pos):
     return html_content[:pos] + insert_str + html_content[pos:]
 
 # ==================== [3] 네이버 수집 ====================
-def get_naver_target_data():
+def get_naver_target_data(recent_posts): # 매개변수 추가됨!
+    recent_titles = [p['title'] for p in recent_posts]
     now = datetime.now()
+    
     COUNTRY_GROUPS = [
-        ["일본", "대만", "홍콩", "중국"],            
-        ["베트남", "태국", "필리핀", "인도네시아"],  
-        ["미국", "캐나다", "하와이"],                
-        ["프랑스", "이탈리아", "스페인", "영국"]     
+        ["일본", "대만", "홍콩", "중국", "마카오"],            
+        ["베트남", "태국", "필리핀", "인도네시아", "발리"],  
+        ["미국", "캐나다", "하와이", "괌", "사이판"],                
+        ["프랑스", "이탈리아", "스페인", "영국", "스위스"]     
     ]
     group_index = now.month % len(COUNTRY_GROUPS)
     current_group = COUNTRY_GROUPS[group_index]
@@ -212,46 +216,41 @@ def get_naver_target_data():
     sub_country = random.choice(current_group[1:]) if len(current_group) > 1 else main_country
     
     BASE_KEYWORDS = [
-        "인천공항 주차 요금", "인천공항 혼잡 시간", "출국 수속 시간", "스마트패스 사용법", 
-        "공항 라운지 무료 이용", "공항 리무진 시간표", "기내 반입 규정", "수하물 추가 요금",
-        "공항 대기 시간", "출국 몇시간 전",
-        "해외 로밍 요금", "eSIM 추천", "eSIM 안될 때", "유심 vs eSIM 비교", 
-        "데이터 안터질 때", "환전 수수료 줄이기", "여행 비용 줄이는 법",
-        f"{main_country} 입국신고서", f"{main_country} 교통패스", f"{main_country} 쇼핑리스트", 
-        f"{main_country} 유심 eSIM 추천", f"{main_country} 맛집 실패 안하는 법",
-        f"{sub_country} 여행 준비물", f"{sub_country} 가볼만한곳",
-        "해외여행 준비물 체크리스트", "여행자 보험 꼭 필요한가", "비상약 리스트", 
-        "세관 신고 기준", "가족 여행 준비 팁", "가성비 숙소 고르는 법"
+        "인천공항 주차 요금", "인천공항 혼잡 시간", "출국 수속 시간", "스마트패스 사용법", "공항 라운지 무료 이용",
+        "해외 로밍 요금", "eSIM 추천", "eSIM 안될 때", "유심 vs eSIM 비교", "트래블로그 트래블월렛 비교",
+        "GLN 결제 방법", "아고다 할인코드", "항공권 싸게 사는 법", "여행자 보험 꼭 필요한가", "기내 반입 금지 품목",
+        f"{main_country} 입국신고서", f"{main_country} 교통패스", f"{main_country} 돈키호테 쇼핑리스트", 
+        f"{main_country} 유심 eSIM 추천", f"{main_country} 택스리펀", f"{main_country} 날씨 옷차림",
+        f"{sub_country} 여행 준비물", f"{sub_country} 가볼만한곳", f"{sub_country} 가성비 숙소", f"{sub_country} 그랩 사용법"
     ]
 
     if not os.path.exists(QUEUE_FILE) or os.stat(QUEUE_FILE).st_size == 0:
-        sorted_keys = prioritize_keywords(BASE_KEYWORDS)
-        sorted_keys = sorted_keys + PRIORITY_KEYWORDS  
+        sorted_keys = prioritize_keywords(BASE_KEYWORDS) + PRIORITY_KEYWORDS  
         with open(QUEUE_FILE, "w", encoding="utf-8") as f: f.write("\n".join(sorted_keys))
 
     with open(QUEUE_FILE, "r", encoding="utf-8") as f: lines = f.read().splitlines()
     if not lines: 
         lines = prioritize_keywords(BASE_KEYWORDS) + PRIORITY_KEYWORDS
-        
-    if random.random() < 0.2 and LOW_PERFORMANCE_KEYWORDS:
-        target_query = random.choice(LOW_PERFORMANCE_KEYWORDS)
-        print(f"♻️ [System] 20% 확률 발동: 저성과 키워드({target_query})를 심폐소생합니다.")
-    elif random.random() < 0.2 and len(lines) > 5:
-        target_query = random.choice(lines[1:])
-        lines.remove(target_query)
-        lines.insert(0, target_query) 
-    else:
-        target_query = lines[0]
+
+    # 🔥 중복 방지 핵심 로직: 큐에 있는 키워드가 최근 40개 글 제목에 있으면 패스!
+    target_query = None
+    for query in lines:
+        core_word = query.split()[0] # 예: "일본 환전"에서 "일본" 추출
+        if not any(core_word in title for title in recent_titles):
+            target_query = query
+            break
+            
+    # 만약 큐에 있는 게 전부 다 겹치면(그럴 확률은 적지만), 랜덤으로 하나 뽑음
+    if not target_query: 
+        target_query = random.choice(lines)
     
-    if random.random() < 0.5:
-        title_guide = (target_query)
-    else:
-        title_guide = f"{target_query} 완벽 가이드 (실제 후기)"
-        
+    title_guide = generate_title_variants(target_query)
     related_keyword = get_content_chain(target_query)
     
-    if target_query == lines[0]:
-        lines = lines[1:] + [target_query]
+    # 사용한 키워드는 맨 아래로 보냄
+    if target_query in lines:
+        lines.remove(target_query)
+        lines.append(target_query)
         with open(QUEUE_FILE, "w", encoding="utf-8") as f: f.write("\n".join(lines))
 
    # 🔥 검색어 꼬리표를 대폭 확장하여 네이버에서 매번 새로운 뼈대 글을 수집하게 만듭니다.
@@ -268,7 +267,8 @@ def get_naver_target_data():
     actual_search_query = f"{target_query}{random.choice(search_suffix)}"
     
     print(f"🎯 [2/6] 키워드: {target_query} (검색어: {actual_search_query})")
-
+    
+    # 셀레니움 수집 로직 (이하 기존과 동일)
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
@@ -330,7 +330,8 @@ def get_naver_target_data():
 
 # ==================== [4] 유동적 SVG 요약 카드 ====================
 def create_summary_card_tag(summary_list, alt_text):
-    safe_list = [str(s).strip()[:6] for s in summary_list if s][:3]
+    # 🔥 이모지 포함되도록 글자수 컷을 10글자로 넉넉하게!
+    safe_list = [str(s).strip()[:10] for s in summary_list if s][:3]
     while len(safe_list) < 3: safe_list.append("") 
     svg_code = f"""
     <svg width="100%" height="200" viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg">
@@ -407,7 +408,7 @@ JSON Keys:
 - meta_desc: 150자 요약
 - meta_keys: 쉼표 구분 키워드
 - slug: 영문 짧은 주소
-- summary: [짧은단어, 짧은단어, 짧은단어] (6글자 이하)
+- summary: ["✈️ 짧은단어", "💰 짧은단어", "✅ 짧은단어"] (반드시 주제와 어울리는 이모지 1개 + 띄어쓰기 + 6글자 이하 텍스트 형태로 3개 작성)
 - map_location: 내용과 연관성 높은 랜드마크
 - content: 서론 다음 <nav> 목차와 id가 부여된 <h2> 태그, 완벽한 table/ul 등이 포함된 순수 HTML 본문
 - category: 반드시 다음 6개 중 주제와 가장 밀접한 1개만 딱 선택하라. 리스트에 없는 단어는 절대 쓰지 마라. ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"]
@@ -469,7 +470,7 @@ def run_automation():
     print("✅ [1/6] Blogger 인증 완료")
 
     recent_posts = get_recent_posts(service, BLOG_ID)
-    keyword, target_url, scraped_data, title_guide, related_keyword, skeleton_title = get_naver_target_data()
+    keyword, target_url, scraped_data, title_guide, related_keyword, skeleton_title = get_naver_target_data(recent_posts) # <-- recent_posts 추가!
     
     filtered_posts = get_related_posts_by_keyword(recent_posts, keyword)
     context_posts = filtered_posts if len(filtered_posts) >= 2 else recent_posts
