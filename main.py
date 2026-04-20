@@ -314,13 +314,13 @@ JSON Keys:
 - content: HTML 본문
 - category: 다음 중 택1 ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"]
 """
-payload = {
+    payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"responseMimeType": "application/json"}
     }
 
     # 2. 🔥 모델 리스트를 하나씩 순회하며 시도합니다.
-for attempt, model_name in enumerate(models_to_try, 1):
+    for attempt, model_name in enumerate(models_to_try, 1):
         
         # ✅ [이 줄이 반드시 여기에 있어야 합니다!] 
         # 루프 안에서 매번 'model_name'을 받아와서 주소를 생성해야 합니다.
@@ -352,7 +352,6 @@ for attempt, model_name in enumerate(models_to_try, 1):
 
     print("❌ 모든 모델 시도가 실패했습니다.")
     return None
-
 # ==================== [6] 메인 실행 (🔥 로직 최적화) ====================
 def run_automation():
     print("🚀 블로그 자동 성장 시스템 가동...")
