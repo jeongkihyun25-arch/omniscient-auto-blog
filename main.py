@@ -96,6 +96,7 @@ def extract_location_keyword(keyword):
 def create_map_embed(location):
     search_term = f"{location} 공항" if "공항" not in location else location
     query = urllib.parse.quote(search_term)
+    # 🔥 캡션 문구 요청하신 대로 정확히 수정 완료
     return f'''
     <div style="margin:40px 0; border-radius:12px; overflow:hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
         <iframe 
@@ -103,7 +104,7 @@ def create_map_embed(location):
             width="100%" height="350" style="border:0;"
             allowfullscreen="" loading="lazy">
         </iframe>
-        <p style="text-align:center; font-size:14px; color:#7f8c8d; margin-top:10px;">👆 {location} 관련 핵심 위치 참고</p>
+        <p style="text-align:center; font-size:14px; color:#7f8c8d; margin-top:10px;">👆 {location} 위치 지도를 클릭해서 위치를 참고하세요.</p>
     </div>
     '''
 
@@ -242,7 +243,7 @@ def create_summary_card_tag(summary_list, title):
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
     return f'<div style="text-align:center; margin:40px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px;" alt="{title}"/></div>'
 
-# ==================== [5] 원고 생성 (🔥 E-E-A-T, 문맥 반영 외부링크) ====================
+# ==================== [5] 원고 생성 (🔥 E-E-A-T 완벽 세팅 및 4000자 초고밀도) ====================
 def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword):
     model_name = get_best_model()
     api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
@@ -261,16 +262,19 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 [10개 블로그 분석 데이터 (뼈대 1 + 리얼 후기 9)]: 
 {scraped_data}
 
-[미션]: 독자가 글을 읽고 즉시 '결정'을 하도록 유도하는, 4,000자에서 6,000자 사이의 '밀도가 매우 높은' 99점짜리 전환형 포스팅을 작성하라. 억지로 글자만 늘리지 마라. 핵심 위주로 쫀쫀하게 구성해라.
+[미션]: 독자가 글을 읽고 즉시 '결정'을 하도록 유도하는, 4,000자에서 6,000자 사이의 '밀도가 매우 높은' 99점짜리 전환형 포스팅을 작성하라. 억지로 글자만 늘리지 마라. 
 
 [🔥 품질 및 전환율 폭발 필터 - 절대 엄수]:
 1. **후킹 및 원-메시지 (Hook)**: 서론 첫 문장에는 "손해", "시간", "돈" 중 하나를 반드시 포함하여 강렬하게 시작하라. 서론 직후에 반드시 **"결론부터 말하면, [{keyword}]에서 손해 안 보는 핵심은 단 하나입니다: [핵심내용]"** 이라는 문장으로 흩어진 정보를 하나로 묶어 이탈을 막아라.
-2. **문맥형 내부링크 핀셋 삽입 (핵심)**: 억지로 '관련 글:' 이라 적지 마라! 본문을 전개하는 문장 속에 자연스럽게 <a> 태그를 사용하여 [내 블로그의 다른 글 리스트] 중 2~3개를 연결하라. (예: "... 공항에서 시간 낭비 없이 바로 인터넷을 쓰려면 <a href='URL'>인천공항 주차 꿀팁</a>도 같이 알아두는 게 좋습니다.")
+2. **문맥형 내부링크 핀셋 삽입 (핵심)**: 억지로 '관련 글:' 이라 적지 마라! 본문을 전개하는 문장 속에 자연스럽게 <a> 태그를 사용하여 [내 블로그의 다른 글 리스트] 중 2~3개를 연결하라. (예: "... 공항에서 시간 낭비 없이 바로 쓰려면 <a href='URL'>인천공항 주차 꿀팁</a>도 같이 알아두는 게 좋습니다.")
 3. **중간 CTA (수익 전환 포인트)**: 설명만 나열하지 말고, 본문 중간(2~3번째 h2 아래)에 독자의 행동을 유도하는 눈에 띄는 텍스트 링크(CTA)를 넣어라. (예: "👉 <a href='#'>지금 가장 많이 쓰는 이심 요금제 50% 할인가 확인하기</a>")
-4. **E-E-A-T 신뢰도 외부 링크 (주제에 맞게 딱 3~4개만)**: 신뢰도 상승을 위해 본문 적재적소에 외부 링크를 3~4개 삽입하라. 무조건 똑같은 패턴을 반복하지 말고, **현재 주제와 내용에 가장 알맞은 조합**으로 구성하라. (target="_blank" 필수)
-   - 예시 (주제에 맞춰 유연하게 적용): 구글맵 장소 링크 (공항, 현지 명소. 띄어쓰기는 '+' 치환), 관련 판매/예약처 공식 사이트, 통신사/공식 안내 참고 사이트 등.
+4. **E-E-A-T 신뢰도 외부 링크 (반드시 3개 완벽 삽입)**: 신뢰도 상승을 위해 본문 적재적소에 다음 3개의 외부 링크를 <a> 태그(target="_blank")로 에러 없이 완벽하게 삽입하라. 여러 단어 검색 시 띄어쓰기는 반드시 '+' 기호로 치환하라.
+   - ① 구글맵 장소 검색 링크 1개 (예: <a href="https://www.google.com/maps/search/?api=1&query=오사카+간사이+공항" target="_blank">오사카 간사이 공항 구글맵 보기</a>) 
+   - ② 구글 웹 검색 링크 1개 (예: <a href="https://www.google.com/search?q=일본+eSIM+할인" target="_blank">일본 eSIM 할인 최신 정보 검색하기</a>) 
+   - ③ 공식 사이트/예매처/통신사 등 유효한 홈페이지 링크 1개 (예: <a href="https://www.google.com" target="_blank">공식 홈페이지에서 확인하기</a> - 상황에 맞는 공식사이트 URL 적용)
+   이 3개의 링크가 누락되면 절대 안 된다. 한 곳에 몰아넣지 말고 가장 자연스러운 타이밍에 1개씩 분산 배치하라.
 5. **결정 버튼 (Decision Maker)**: 글 마지막에 '<h3>결론: 그래서 뭐 쓰라고? (상황별 추천)</h3>' 섹션을 무조건 넣어라. "3~5일 짧은 여행 = eSIM 압승", "장기 여행 = 로밍" 등 고민을 완전히 종결지어라.
-6. **숫자와 손해 회피 심리 자극**: 비용(원)과 시간(분)을 명확한 숫자로 적어라. (예: "공항 유심 구매 → 30분 소요", "로밍 → 하루 10,000원")
+6. **숫자와 손해 회피 심리 자극**: 비용(원)과 시간(분)을 명확한 숫자로 적어라.
 7. **동적 구조 및 시인성**: <table> 1개 이상, <ul><li> 리스트 1개 이상 반드시 사용. <nav>와 본문의 <h2> id는 문맥을 나타내는 영단어(예: id="esim-error-fix")로 매번 다르게 생성하라.
 
 [출력 형식 가이드]: 순수 JSON 형식 문자열로만 반환하라. 절대 마크다운 표기를 포함하지 마라.
@@ -308,7 +312,7 @@ JSON Keys:
             
     return None
 
-# ==================== [6] 메인 실행 (🔥 지능형 지도 삽입, 광고 최적화) ====================
+# ==================== [6] 메인 실행 (🔥 위치 이동 및 구조 최적화) ====================
 def run_automation():
     print("🚀 블로그 자동 성장 시스템 가동...")
     
@@ -345,16 +349,16 @@ def run_automation():
             f.write("\n" + keyword)
         return
 
-    # 🔥 지도 생성 로직 (키워드에서 국가/도시 추출 후 iframe 생성)
+    # 🔥 지도 생성 로직
     location = extract_location_keyword(keyword)
     map_html = create_map_embed(location)
     print(f"🗺️ [System] '{location}' 기반 구글맵 코드를 생성했습니다.")
 
-    # 하단 보조용 내부링크 (본문에 이미 잘 들어갔겠지만 보강용)
+    # 🔥 하단 보조용 내부링크 (글 최상단이 아닌 하단 결론 직전에 배치하기 위해 분리)
     related_html = ""
     if context_posts:
         related_html = "<div class='related-posts'><h3>📌 같이 보면 돈이 되는 글</h3><ul>"
-        for p in random.sample(context_posts, min(3, len(context_posts))): 
+        for p in random.sample(context_posts, min(2, len(context_posts))): 
             related_html += f'<li><a href="{p["url"]}">{p["title"]}</a></li>'
         related_html += "</ul></div>"
 
@@ -368,43 +372,44 @@ def run_automation():
     card_tag = create_summary_card_tag(data.get('summary', ["핵심정리", "비용절약", "시간단축"]), data['title'])
     content = data['content']
 
-    # HTML 조립 (관련글 -> SVG -> 상단광고 -> 본문)
-    top_insertion = f"{related_html}{card_tag}{ads_code}"
-    
+    # 🔥 1. 상단 삽입 (SVG 카드와 상단 광고만 삽입. 관련글 링크는 아래로 이동)
+    top_insertion = f"{card_tag}{ads_code}"
     if re.search(r'</nav>', content, re.IGNORECASE): 
         content = re.sub(r'(</nav>)', f'\\1{top_insertion}', content, flags=re.IGNORECASE, count=1)
     else: 
         content = top_insertion + content
 
-    # 🔥 지능형 구글맵 위치 선정 로직 (무조건 1번째가 아니라 문맥에 맞는 h2를 찾음)
+    # 🔥 2. 지능형 구글맵 위치 선정 로직
     h2_pattern = re.compile(r'(<h2[^>]*>.*?</h2>)', re.IGNORECASE)
     h2_tags = h2_pattern.findall(content)
     map_inserted = False
     
     location_keywords = ["위치", "공항", "지도", "가는", "어디", location]
-    
     for h2_tag in h2_tags:
         if any(k in h2_tag for k in location_keywords):
-            # 위치 키워드가 포함된 h2 바로 아래에 삽입
             content = content.replace(h2_tag, h2_tag + map_html, 1)
             map_inserted = True
             break
             
     if not map_inserted and len(h2_tags) > 0:
-        # 적절한 키워드의 h2가 없으면 2번째 h2 (또는 1번째) 아래에 삽입
         target_h2 = h2_tags[1] if len(h2_tags) > 1 else h2_tags[0]
         content = content.replace(target_h2, target_h2 + map_html, 1)
 
-    # 🔥 광고 위치 추가 최적화 (첫 번째 h2 상단 + 중간 + 하단)
-    content = re.sub(r'(<h2)', ads_code + r'\1', content, count=1) 
+    # 🔥 3. 광고 위치 및 "관련글 링크" 최적화
+    content = re.sub(r'(<h2)', ads_code + r'\1', content, count=1) # 첫 번째 h2 상단 광고
     
     h2_parts = content.split("<h2") 
     if len(h2_parts) >= 4: 
         mid_index = len(h2_parts) // 2
+        # 중간 광고 삽입
         h2_parts[mid_index] = ads_code + "<h2" + h2_parts[mid_index]
+        # 결론(마지막 h2) 바로 위에 관련글 박스 삽입 (문맥을 해치지 않는 하단부)
+        h2_parts[-1] = related_html + "<h2" + h2_parts[-1]
         content = "<h2".join(h2_parts)
-        
-    content = content + ads_code 
+    else:
+        content = content + related_html + ads_code 
+
+    content = content + ads_code # 맨 하단 광고
 
     final_html = f"""
     <meta name="description" content="{data.get('meta_desc', '')}">
