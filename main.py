@@ -344,7 +344,7 @@ def create_summary_card_tag(summary_list, alt_text):
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
     return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{alt_text}"/></div>'
 
-# ==================== [5] 원고 생성 (🔥 표, 내부/외부 링크 완벽 강제) ====================
+# ==================== [5] 원고 생성 (🔥 하네스 원칙: 2단계 분업 & 제목 중복 완벽 차단) ====================
 def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword, skeleton_title):
     models_to_try = get_best_models() 
 
@@ -354,109 +354,132 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
         "프로 봇짐러", "사진에 미친 여행자"
     ]
     current_persona = random.choice(personas)
-    recent_posts_str = "\n".join([f"- 제목: {p['title']} (URL: {p['url']})" for p in context_posts])
+    
+    # 🔥 내부링크용 메뉴판 생성 (최대 10개, 파이썬이 번호표 부여)
+    menu_posts = context_posts[:10] 
+    recent_titles_str = "\n".join([f"- [ID: {i}] 제목: {p['title']}" for i, p in enumerate(menu_posts)])
 
-    # 👇 윗줄과 똑같이 들여쓰기(Tab)를 맞춰주세요!
-    prompt = f"""
+    # -------------------------------------------------------------------
+    # 👨‍🎨 [1단계 API] 메인 작가 AI (오직 본문 HTML 창작에만 집중, JSON 절대 금지)
+    # -------------------------------------------------------------------
+    prompt_writer = f"""
 [타겟 키워드]: {keyword}
 [페르소나]: {current_persona} 
-[내 블로그 다른 글 리스트]: 
-{recent_posts_str}
+[내 블로그 관련 글 리스트 (메뉴판)]: 
+{recent_titles_str}
 
-[🔥 이번 글의 핵심 메인 테마 및 제목 작성 가이드]: 
-제공된 뼈대 블로그의 제목인 **[{skeleton_title}]**이 다루는 특정 상황, 심층 꿀팁을 이번 포스팅의 핵심 앵글로 삼아라. 
-🚨 절대 백과사전처럼 포괄적인 장단점이나 뻔한 소개를 줄줄이 나열하지 마라!
-특정 타겟(예: 가족 여행객, 뚜벅이)이나 특정 상황(예: 수수료 폭탄 방지, 환불 꿀팁, 사기 피하기) 중 딱 **하나의 뾰족한 주제(Niche)**에만 딥다이브(Deep-dive)해서 써라.
-초반에 반드시 "결론부터 말하면, 핵심은 단 하나입니다."와 같은 형태로 그 1가지 명확한 핵심을 던지고 시작하라.
-
-**[🎯 제목(title) 생성 특명 - 4단 콤보 공식 엄수!]**: 
-본문에서 강조한 '1가지 뾰족한 주제'를 바탕으로 아래 4단계 공식을 무조건 조합하여 클릭률 폭발하는 제목을 만들어라. 포괄적인 제목(예: 완벽 가이드, 장단점 총정리)은 절대 금지한다.
-* 1단계 [시선집중 서두]: "2026년 최신판!", "이번 달 여행 준비,", "찐후기 주의,", "현지인만 아는", "안 보면 무조건 손해!", "솔직히 말해서", "결론부터 말하면", "초보자 필독!" 중 택 1
-* 2단계 [뾰족한 핵심 훅]: 네가 잡은 본문의 구체적인 Niche 주제를 자극적으로 표현 (예: 숨은 수수료 0원 비법, 딱 1가지만 기억하세요)
-* 3단계 [신뢰/감정 괄호]: "(직접 해본 결과)", "(Feat. 내돈내산)", "(실제 후기 포함)", "(부작용 주의)", "(정리 끝판왕)" 중 택 1
-* 4단계 [클릭 유도 마무리]: "확인해 보세요 🚀", "지금 바로 보기", "전격 비교!", "이 글 하나로 끝내세요" 중 택 1
-(최종 적용 예시: "찐후기 주의, 에어비앤비 청소비 0원 만드는 비법 (직접 해본 결과) 확인해 보세요 🚀") 추가로 제목은 너무 길지않게 검색잘되는 방향으로
+[🔥 핵심 메인 테마]: 
+제공된 뼈대 블로그 제목 **[{skeleton_title}]**이 다루는 특정 상황 중 딱 **하나의 뾰족한 주제(Niche)**에만 딥다이브(Deep-dive)하라. 백과사전식 나열 절대 금지.
+🚨 [치명적 오류 방지]: 매번 똑같은 말("결론부터 말하면")로 서론을 시작하지 마라! "가장 궁금해하시는 정답부터 말씀드릴게요.", "딱 핵심만 짚어드립니다." 등 매번 다른 자연스러운 휴먼톤으로 시원하게 정답을 던지며 시작하라.
 
 [10개 블로그 분석 데이터]: 
 {scraped_data}
 
-[미션]: 독자가 즉시 '결정'을 하도록 유도하는, 4,000자~6,000자 분량의 초고밀도 전환형 포스팅을 작성하라.
+[🔥 미션 및 강제 규칙 - 순수 HTML만 반환할 것 (JSON 절대 금지)]:
+1. **서식 강제**: 서론 다음 `<nav><div class='toc-title'>목차</div><ul>...</ul></nav>` 목차 생성. 본문 소제목은 `<h2 id='sec1'>` 형태 적용. 리스트는 `<ul><li>` 사용.
+2. **표(Table) 필수**: 비교/장단점 설명 시 반드시 `<div class='table-wrapper'><table>...</table></div>` 형태의 완벽한 HTML 표를 최소 1개 이상 포함하라.
+3. **🔥중간 CTA (수익 전환 포인트)**: 본문 중간에 클릭을 유도하는 링크를 1개 이상 배치하라. 무조건 유효한 링크주소로 할 것.
+4. **🔥문맥형 내부링크 (메뉴판 번호표 사용 필수)**: 
+   - 위 [내 블로그 관련 글 리스트 (메뉴판)]을 읽고, 문맥과 가장 찰떡같이 어울리는 글을 네가 직접 1~3개 골라라. 
+   - <a> 태그를 절대 직접 쓰지 말고, 글의 문맥에 맞춰 삽입할 위치에 `[내부링크_ID번호]` 라고만 텍스트로 적어라. (예: "자세한 방법은 [내부링크_2] 글을 참고하세요.")
+5. **외부링크 3개**: 반드시 무조건 접속되는 구글 검색결과 URL 또는 구글 맵 URL을 사용하여 <a> 태그(새창열기)로 3개 삽입하라.
+6. **결론**: 마지막엔 `<h2 id='conclusion'>결론 및 요약</h2>` 태그를 사용하되, 상황별 추천을 페르소나 말투에 맞게 작성해라.
+7. **품질 및 톤앤매너**: 휴먼톤 적용(~했어요, 솔직히 말해서 등). 이유+결과 공식 사용. 마크다운(`**`, `##`) 절대 금지. 이름이나 개인정보는 밝히지 말 것. 본문 내 모든 HTML 속성은 작은따옴표(')를 사용하라.
 
-[🔥 핵심 강제 지시사항 - 서식 깨짐 절대 방지 및 블로그 최적화]:
-1. **HTML 포맷 및 목차(TOC) 강제 (매우 중요)**: 
-   - 마크다운(`##`, `**`) 절대 금지! 오직 순수 HTML 태그만 사용.
-   - 본문 서론 다음에는 반드시 `<nav><div class='toc-title'>목차</div><ul>...</ul></nav>` 형태의 목차를 작성하라.
-   - 목차의 링크는 `<a href='#sec1'>` 형태로 앵커를 달고, 본문의 소제목 <h2> 태그에는 반드시 `<h2 id='sec1'>` 처럼 id를 일치시켜 클릭 시 정확히 이동하게 하라.
-2. **문맥형 최신 내부링크 (무조건 3개 자연 삽입 강제)**: 
-   - 'Related:' 같은 단독 문단 절대 금지. 문장 안에 [내 블로그 다른 글 리스트] 중 3개를 골라 자연스럽게 버튼 스타일로 녹여라. 새창열기 필수.
-   - 예시: `이럴 때는 <a href='URL' target='_blank' class='int-link'>관련 꿀팁 (🔗관련글)</a>을 참고하면 좋습니다.`
-3. **중간 CTA (수익 전환 포인트)**: 본문 중간에 클릭을 유도하는 링크를 1개 이상 배치하라. 그리고 무조건 유효한 링크주소로할것 (예: 👉 지금 가장 많이 쓰는 요금제 확인하기)
-4. **🔥무조건 접속되는 오류없이 안전한 구글 외부 링크 (무조건 문맥에 맞는 링크 3개 강제)**: 
-   - 가짜 오류 URL 방지를 위해, 모든 외부 링크는 **반드시 구글 검색 결과 URL** 또는 **구글 맵 검색 URL**로만 정확히 3개 작성하라. 유효하지 않은 오류나는 링크걸지 말것 새창열기 필수.
-   - 예시: `<a href='https://www.google.com/search?q=관련+검색어' target='_blank' class='ext-link'>관련 최신정보 구글 검색하기 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
-5. **결정 버튼**: 본문 맨 마지막에 `<h2 id='conclusion'>결론: 그래서 뭐 쓰라고? 또는 주제에 맞게 다른 말투로 쓸것 (상황별 추천)</h2>` 태그를 사용해라.
-6. **표(Table)와 리스트(List) 절대 엄수 (비교 시 무조건 표 사용)**: 
-   - 제품 비교나 장단점 설명 시 절대 줄글로 쓰지 말고, 반드시 `<div class='table-wrapper'><table><tr><th>...</th></tr><tr><td>...</td></tr></table></div>` 형태의 완벽한 HTML 표로 작성하라. 
-   - 텍스트 나열은 `<p>` 대신 `<ul><li>...</li></ul>`를 적극 활용해 가독성을 높여라.
-7. **SVG 길이**: JSON의 `summary` 단어들은 무조건 6글자 이하로 3개 작성하되 제목을 함축해서 시인성 좋게.
-
-[🌟 품질 필터 및 휴먼 톤(Human Tone) 작성 지침]:
-- 기계식 서론 금지: 검색 과정 등 군더더기 금지. 곧바로 독자에게 필요한 '핵심 혜택'부터 강력하게 던져라.
-- 리얼리티 경험담: 친한 회원에게 썰 푸는 말투(~했어요, 솔직히 말해서 등) 사용.
-- 완벽한 정보 금지: 일부는 경험처럼 풀고, 반말 느낌이나 감탄문 1~2개 허용.
-- 이유+결과 공식: 모든 문장은 "이유+결과"를 적어라.
-- 문장 길이 섞기, 말투 살짝 흔들기, 반복 패턴 깨기
-- 한두 문장은 반말 느낌 섞기
-- 강조 문장은 짧게 끊기
-- 감탄문 1~2개 허용
-- 이름이나 너무 개인정보는 밝히지 말것
-- 모방하는 사이트의 이름같은 정보는 가져오지말것
-
-🔥 [JSON 에러 절대 방지 강제 규칙]: 본문(content) 안에 들어가는 모든 HTML 속성(href, class, id, style 등)에는 반드시 **작은따옴표(')**만 사용하라! (예: <a href='링크' class='버튼' style='color:red;'>). 값 내부에 큰따옴표(")가 섞이면 시스템이 파괴되므로 무조건 금지한다.
-
-[출력 형식 가이드]: 순수 JSON 형식 문자열로만 반환하라.
-JSON Keys: 
-- title: 위의 [제목 생성 특명] 4단 콤보 공식을 완벽하게 적용한 어그로 제목 (포괄적 제목 절대 금지)
-- meta_desc: 150자 요약
-- meta_keys: 쉼표 구분 키워드
-- slug: 영문 짧은 주소
-- summary: ["✈️ 짧은단어", "💰 짧은단어", "✅ 짧은단어"] (반드시 주제와 어울리는 이모지 1개 + 띄어쓰기 + 6글자 이하 텍스트 형태로 3개 작성)
-- map_location: 내용과 연관성 높은 랜드마크
-- content: 서론 다음 <nav> 목차와 id가 부여된 <h2> 태그, 완벽한 table/ul 등이 포함된 순수 HTML 본문
-- category: 반드시 다음 6개 중 주제와 가장 밀접한 1개만 딱 선택하라. 리스트에 없는 단어는 절대 쓰지 마라. ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"]
+결과물은 어떠한 부연 설명도 없이 완성된 순수 HTML 본문 코드만 반환하라.
 """
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"responseMimeType": "application/json"}
-    }
-
+    
+    print(f"✍️ [4/6] 1단계: 메인 작가 AI가 본문 HTML을 창작 중입니다...")
+    draft_html = None
     for attempt, model_name in enumerate(models_to_try, 1):
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
         try:
-            print(f"✍️ [4/6] 시도 {attempt}: {model_name} 모델 사용 중...")
-            res = requests.post(api_url, json=payload, timeout=180)
-            res.raise_for_status() 
-            
-            raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
-            raw_text = raw_text.replace("```json", "").replace("```", "").strip()
-            
-            data = json.loads(raw_text)
-            data['used_references'] = [target_blog_url]
-            return data 
-            
+            res = requests.post(api_url, json={"contents": [{"parts": [{"text": prompt_writer}]}]}, timeout=180)
+            res.raise_for_status()
+            draft_html = res.json()['candidates'][0]['content']['parts'][0]['text'].replace("```html", "").replace("```", "").strip()
+            break
         except Exception as e:
             if "503" in str(e) or "429" in str(e) or "unavailable" in str(e).lower():
                 wait_time = 15 * attempt 
-                print(f"⚠️ {model_name} 과부하 감지 → {wait_time}초 대기 후 다음 모델로 전환합니다.")
+                print(f"⚠️ {model_name} 과부하 감지 → {wait_time}초 대기 후 재시도합니다.")
                 time.sleep(wait_time)
-                continue 
             else:
-                print(f"🚨 모델 에러 ({model_name}): {e}")
+                print(f"🚨 작가 AI 에러 ({model_name}): {e}")
                 time.sleep(5)
-                continue
+            
+    if not draft_html:
+        print("❌ 1단계 본문 생성 실패")
+        return None
 
-    print("❌ 모든 모델 시도가 실패했습니다.")
-    return None
+    # -------------------------------------------------------------------
+    # 🕵️‍♂️ [2단계 API] 편집장 AI (초안을 읽고 어그로 제목 및 JSON 포장)
+    # -------------------------------------------------------------------
+    prompt_editor = f"""
+당신은 완벽한 SEO 편집장입니다. 아래 작성된 [초안 블로그 본문]을 꼼꼼히 읽고, 아래 JSON 양식에 맞춰 완벽한 메타데이터를 생성하라.
+
+[초안 블로그 본문]:
+{draft_html[:3000]} ... (중략)
+
+**[🎯 최종 제목(title) 생성 하네스(Harness) 지침]**: 
+파이썬 시스템이 기획한 아래의 [권장 제목 뼈대]를 반드시 훼손 없이 적용하라.
+* 권장 제목 뼈대: {title_guide}
+* 필수 포함 키워드: {keyword}
+
+🚨 [치명적 오류 방지 3대 절대 규칙 - 위반 시 파이썬 중복 발행 검사 시스템이 파괴됨]:
+1. 앵무새 짓 금지: 초안 본문의 첫 문장을 제목 서두에 멍청하게 복사 붙여넣기 하지 마라!
+2. 뼈대 훼손 절대 금지: [권장 제목 뼈대]의 뉘앙스는 100% 그대로 유지하라.
+3. 타겟 키워드 강제 포함: 제목 어딘가에 [필수 포함 키워드]('{keyword}')를 무조건 원형 그대로 1회 이상 포함시켜라. 
+
+[출력 형식 가이드]: 반드시 순수 JSON 형식 문자열로만 반환하라.
+JSON Keys: 
+- title: 위 하네스 지침을 완벽하게 적용한 최종 제목
+- meta_desc: 본문 핵심 150자 요약
+- meta_keys: 쉼표 구분 키워드 (반드시 '{keyword}' 포함)
+- slug: 영문 짧은 주소
+- summary: ["✈️ 짧은단어", "💰 짧은단어", "✅ 짧은단어"] (이모지 1개+띄어쓰기+6글자 이하 텍스트 형태로 3개)
+- map_location: 내용과 연관성 높은 구체적인 랜드마크 장소명
+- category: ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"] 중 1개 선택
+"""
+    
+    print(f"✨ [5/6] 2단계: 편집장 AI가 제목과 메타데이터(JSON)를 포장 중입니다...")
+    final_data = None
+    for attempt, model_name in enumerate(models_to_try, 1):
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt_editor}]}],
+            "generationConfig": {"responseMimeType": "application/json"}
+        }
+        try:
+            res = requests.post(api_url, json=payload, timeout=180)
+            res.raise_for_status()
+            raw_json = res.json()['candidates'][0]['content']['parts'][0]['text'].replace("```json", "").replace("```", "").strip()
+            final_data = json.loads(raw_json)
+            break
+        except Exception as e:
+            if "503" in str(e) or "429" in str(e) or "unavailable" in str(e).lower():
+                wait_time = 15 * attempt 
+                print(f"⚠️ {model_name} 과부하 감지 → {wait_time}초 대기 후 재시도합니다.")
+                time.sleep(wait_time)
+            else:
+                print(f"🚨 편집장 AI 에러 ({model_name}): {e}")
+                time.sleep(5)
+            
+    if not final_data:
+        print("❌ 2단계 메타데이터 생성 실패")
+        return None
+
+    # -------------------------------------------------------------------
+    # 🐍 [3단계] 파이썬 조립: 본문 + 메타데이터 합체 및 내부링크 HTML 치환
+    # -------------------------------------------------------------------
+    # 🔥 작가가 본문에 남겨둔 [내부링크_0] 등의 텍스트를 파이썬이 진짜 <a> 태그로 바꿔치기 (에러 0%)
+    for i, p in enumerate(menu_posts):
+        link_html = f" <a href='{p['url']}' target='_blank' class='int-link'>🔗 {p['title']} (새창)</a> "
+        draft_html = draft_html.replace(f"[내부링크_{i}]", link_html)
+        
+    final_data['content'] = draft_html 
+    final_data['used_references'] = [target_blog_url]
+    
+    return final_data
 
 # ==================== [6] 메인 실행 ====================
 def run_automation():
