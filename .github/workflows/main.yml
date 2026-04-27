@@ -1,11 +1,14 @@
 name: Blogger Automation with Naver Search
 
 on:
-  schedule:
-    - cron: '0 2 * * *' # 매일 한국시간 오전 11시 자동 실행
   repository_dispatch:
     types: [run_automation] # 🌟 구글 GAS 신호를 받기 위한 설정
   workflow_dispatch: # 수동 실행 버튼
+
+# 🔥 중복 실행 원천 차단 (쌍둥이 글 완벽 방지 자물쇠)
+concurrency:
+  group: blog-automation
+  cancel-in-progress: true
 
 jobs:
   build:
