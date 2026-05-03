@@ -86,9 +86,8 @@ def prioritize_keywords(keywords):
     return p + n
 
 def generate_title_variants(keyword):
-    # 기존의 prefix, hook, proof, suffix 리스트와 조합 로직을 모두 지우고 아래로 교체
-def generate_title_variants(keyword):
-    return f"{keyword} 관련 최신 정보와 솔직한 내돈내산 후기"
+    # 🔥 AI 편집장과 목표를 일치시키기 위해, 여기서 억지로 5개를 만들지 않고 핵심 방향만 던져줍니다.
+    return f"{keyword} 핵심 정보"
 
 def generate_alt_text(keyword, context):
     variants = [
@@ -403,7 +402,6 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 [초안 블로그 본문]:
 {draft_html[:3000]} ... (중략)
 
-# prompt_editor = f""" ... """ 내부의 [최종 제목 생성 특명] 부분을 아래로 교체
 **[🔥 최종 제목(title) 생성 특명 - 100% 자연스러운 한국어 문장]**: 
 - 🚨 "2026년 최신판!", "확인해 보세요 🚀" 같은 인위적인 수식어 조합을 절대 쓰지 마세요.
 - 네이버 상위 노출 뼈대 제목인 **[{skeleton_title}]**의 장점만 흡수해서, 사람이 직접 쓴 것 같은 자연스러운 문장형 제목을 만드세요.
