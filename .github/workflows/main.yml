@@ -2,10 +2,10 @@ name: Blogger Automation with Naver Search
 
 on:
   schedule:
-    # 🕒 한국 시간 기준 매일 오전 9시부터 오후 11시까지, 매시간 정각마다 봇이 깨어납니다.
-    # (사람이 활동하는 낮 시간대에만 주사위를 굴리도록 범위를 제한했습니다.)
+    # 🕒 한국 시간 기준 매일 오전 9시부터 오후 11시까지, 매시간 정각마다 깨어납니다.
+    # (UTC 00:00 ~ 14:00 = KST 09:00 ~ 23:00)
     - cron: '0 0-14 * * *'
-  workflow_dispatch: # 수동 실행 버튼도 유지합니다.
+  workflow_dispatch: # 수동 실행 버튼
 
 concurrency:
   group: blog-automation
@@ -41,21 +41,27 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BLOG_ID: ${{ secrets.BLOG_ID }}
           BLOGGER_TOKEN_PKL: ${{ secrets.BLOGGER_TOKEN_PKL }}
-        # 👇 실행할 때 파이썬이 자체적으로 "이번 시간에 글을 쓸지 말지" 사람처럼 불규칙하게 결정합니다.
+        # 🔥 파이썬 멀티라인(|) 문법을 사용해 줄바꿈 에러를 원천 차단하고 logic을 뒤집었습니다.
         run: |
           python -c "
-          import random, sys
-          # 🎲 15%의 확률로 당첨되면 글을 씁니다. (하루에 보통 1~2번 랜덤으로 당첨됨)
+          import random, sys, os
+          
+          # 🎲 15%의 확률로 당첨되어야만 통과 (하루 평균 1~2회 발행)
           if random.random() > 0.15:
               print('🤫 [Human Filter] 이번 시간은 건너뜁니다. (사람처럼 보이기 위한 랜덤 스킵)')
+              # 🛑 깃허브 액션 자체를 '실패' 처리하지 않고 그냥 '여기서 조용히 종료'시킵니다.
               sys.exit(0)
+              
           print('🚀 [Human Filter] 당첨! 지금 사람이 글을 쓰는 것처럼 자동화를 시작합니다.')
-          " && python main.py
+          
+          # 🎯 당첨되었을 때만 파이썬 내부에서 main.py를 안전하게 실행합니다.
+          os.system('python main.py')
+          "
 
       - name: Commit and Push changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add keywords_queue.txt
-          git commit -m "Update keyword queue: Consumed one [skip ci]" || echo "No changes to commit"
-          git push
+          # 📝 변경사항이 있을 때만 커밋하도록 방어막 구축
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update keyword queue: Consumed one [skip ci]" && git push)
