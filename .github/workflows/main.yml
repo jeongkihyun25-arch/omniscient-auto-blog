@@ -1,11 +1,12 @@
 name: Blogger Automation with Naver Search
 
 on:
-  repository_dispatch:
-    types: [run_automation] # 🌟 구글 GAS 신호를 받기 위한 설정
-  workflow_dispatch: # 수동 실행 버튼
+  schedule:
+    # 🕒 한국 시간 기준 매일 오전 9시부터 오후 11시까지, 매시간 정각마다 봇이 깨어납니다.
+    # (사람이 활동하는 낮 시간대에만 주사위를 굴리도록 범위를 제한했습니다.)
+    - cron: '0 0-14 * * *'
+  workflow_dispatch: # 수동 실행 버튼도 유지합니다.
 
-# 🔥 중복 실행 원천 차단 (쌍둥이 글 완벽 방지 자물쇠)
 concurrency:
   group: blog-automation
   cancel-in-progress: true
@@ -14,7 +15,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 🌟 중요: 수정된 키워드 파일을 다시 저장할 권한
+      contents: write
 
     steps:
       - name: Checkout code
@@ -35,14 +36,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests selenium webdriver-manager google-generativeai google-api-python-client google-auth-oauthlib
 
-      - name: Run Script 
+      - name: Run Script with Random Human Filter
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BLOG_ID: ${{ secrets.BLOG_ID }}
-          BLOGGER_TOKEN_PKL: ${{ secrets.BLOGGER_TOKEN_PKL }} # 🌟 우리가 만든 외계어 토큰
-        run: python main.py
+          BLOGGER_TOKEN_PKL: ${{ secrets.BLOGGER_TOKEN_PKL }}
+        # 👇 실행할 때 파이썬이 자체적으로 "이번 시간에 글을 쓸지 말지" 사람처럼 불규칙하게 결정합니다.
+        run: |
+          python -c "
+          import random, sys
+          # 🎲 15%의 확률로 당첨되면 글을 씁니다. (하루에 보통 1~2번 랜덤으로 당첨됨)
+          if random.random() > 0.15:
+              print('🤫 [Human Filter] 이번 시간은 건너뜁니다. (사람처럼 보이기 위한 랜덤 스킵)')
+              sys.exit(0)
+          print('🚀 [Human Filter] 당첨! 지금 사람이 글을 쓰는 것처럼 자동화를 시작합니다.')
+          " && python main.py
 
-      # 🌟 중요: 실행 후 소모된 키워드 리스트(keywords_queue.txt)를 깃허브에 다시 저장
       - name: Commit and Push changes
         run: |
           git config --global user.name "github-actions[bot]"
