@@ -2,9 +2,9 @@ name: Blogger Automation with Naver Search
 
 on:
   schedule:
-    # 🕒 한국 시간 기준 매일 오전 9시부터 오후 11시까지, 매시간 정각마다 깨어납니다.
-    # (UTC 00:00 ~ 14:00 = KST 09:00 ~ 23:00)
-    - cron: '0 0-14 * * *'
+    # 🕒 [이틀에 1번 세팅] 홀수 날(1, 3, 5, 7...)마다 한국 시간 오후 2시 정각에 깨어납니다.
+    # (UTC 05:00 = KST 14:00)
+    - cron: '0 5 1-31/2 * *'
   workflow_dispatch: # 수동 실행 버튼
 
 concurrency:
@@ -36,25 +36,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests selenium webdriver-manager google-generativeai google-api-python-client google-auth-oauthlib
 
-      - name: Run Script with Random Human Filter
+      - name: Run Script with Smart Human Delay
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BLOG_ID: ${{ secrets.BLOG_ID }}
           BLOGGER_TOKEN_PKL: ${{ secrets.BLOGGER_TOKEN_PKL }}
-        # 🔥 파이썬 멀티라인(|) 문법을 사용해 줄바꿈 에러를 원천 차단하고 logic을 뒤집었습니다.
+        # 🔥 주사위 탈락 없이 무조건 100% 실행하되, 실행 시간을 사람처럼 분, 초 단위로 랜덤하게 꼬아서 시작합니다.
         run: |
           python -c "
-          import random, sys, os
+          import random, time, os
           
-          # 🎲 15%의 확률로 당첨되어야만 통과 (하루 평균 1~2회 발행)
-          if random.random() > 0.15:
-              print('🤫 [Human Filter] 이번 시간은 건너뜁니다. (사람처럼 보이기 위한 랜덤 스킵)')
-              # 🛑 깃허브 액션 자체를 '실패' 처리하지 않고 그냥 '여기서 조용히 종료'시킵니다.
-              sys.exit(0)
-              
-          print('🚀 [Human Filter] 당첨! 지금 사람이 글을 쓰는 것처럼 자동화를 시작합니다.')
+          # ⏳ 0초에서 5400초(1시간 반) 사이로 무작위 대기 시간 가동 (사람이 켜는 시간 묘사)
+          delay = random.randint(0, 5400)
+          min_delay = round(delay / 60, 1)
           
-          # 🎯 당첨되었을 때만 파이썬 내부에서 main.py를 안전하게 실행합니다.
+          print(f'🤫 [Human Filter] 기계처럼 정각에 안 올리고, {min_delay}분 동안 커피 한 잔 마시며 대기 후 글을 씁니다...')
+          time.sleep(delay)
+          
+          print('🚀 [Human Filter] 대기 완료! 지금 글 작성을 시작합니다.')
           os.system('python main.py')
           "
 
@@ -63,5 +62,4 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add keywords_queue.txt
-          # 📝 변경사항이 있을 때만 커밋하도록 방어막 구축
           git diff --quiet && git diff --staged --quiet || (git commit -m "Update keyword queue: Consumed one [skip ci]" && git push)
