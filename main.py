@@ -28,6 +28,30 @@ LABEL_OPTIONS = ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", 
 PRIORITY_KEYWORDS = ["스마트패스", "입국신고서", "라운지", "수하물", "여행자보험", "렌터카", "디파짓", "텍스리펀", "DCC", "지연 보상"]
 LOW_PERFORMANCE_KEYWORDS = ["일본 환전 꿀팁", "여행자 보험 꼭 필요한가", "가성비 숙소 고르는 법"]
 
+# 계절별 자동 발행 키워드 (검색 수요 1개월 선행 기준)
+SEASONAL_KEYWORDS = {
+    "winter": [  # 11, 12, 1월
+        "삿포로 겨울여행", "오타루 당일치기", "유후인 료칸 예약", "벳푸 온천 여행",
+        "노보리베츠 온천", "치앙마이 건기 여행", "푸꾸옥 건기 여행", "코타키나발루 건기",
+        "시드니 여름 여행", "유럽 크리스마스마켓", "연말 항공권 예약", "겨울 온천 준비물"
+    ],
+    "spring": [  # 2, 3, 4월
+        "교토 벚꽃 명소", "도쿄 벚꽃 개화시기", "후쿠오카 벚꽃 여행", "오사카성 벚꽃",
+        "타이베이 봄 옷차림", "다낭 3월 날씨", "나트랑 봄 여행", "파리 봄 옷차림",
+        "스페인 4월 날씨", "진해 군항제 동선", "경주 벚꽃 드라이브", "제주 유채꽃 코스"
+    ],
+    "summer": [  # 5, 6, 7월
+        "홋카이도 여름여행", "후라노 비에이 투어", "오키나와 스노클링", "발리 건기 여행",
+        "발리 우붓 리조트", "시드니 겨울 여행", "스위스 여름 트레킹", "돌로미티 여름 코스",
+        "캐나다 록키 여행", "괌 투몬비치 호텔", "사이판 마나가하섬", "여름 휴가 항공권"
+    ],
+    "autumn": [  # 8, 9, 10월
+        "교토 단풍 시기", "닛코 단풍 코스", "아라시야마 단풍", "캐나다 메이플로드",
+        "타이베이 가을 여행", "추석연휴 해외여행", "방콕 10월 날씨", "홍콩 가을 날씨",
+        "이탈리아 가을 여행", "설악산 단풍 코스", "내장산 단풍 시기", "제주 억새 명소"
+    ]
+}
+
 CONTENT_FLOW = {
     "공항": ["스마트패스 등록", "인천공항 장기주차장", "공항 라운지 무료", "위탁수하물 무게 초과", "셀프백드랍 이용법"],
     "입국": ["비지트재팬웹 등록", "대만 입국신고서", "태국 입국신고서", "미국 ESTA 신청", "세관신고서 작성 기준"],
@@ -81,13 +105,34 @@ def get_best_models():
         print(f"⚠️ 모델 리스트 호출 실패: {e} → 기본 리스트 사용")
         return default_models
 
+def get_current_season_keywords(month):
+    if month in [11, 12, 1]:
+        return SEASONAL_KEYWORDS["winter"]
+    elif month in [2, 3, 4]:
+        return SEASONAL_KEYWORDS["spring"]
+    elif month in [5, 6, 7]:
+        return SEASONAL_KEYWORDS["summer"]
+    else:
+        return SEASONAL_KEYWORDS["autumn"]
+
+def requeue_if_needed(keyword):
+    all_seasonal = {k for v in SEASONAL_KEYWORDS.values() for k in v}
+    if keyword in all_seasonal:
+        return
+    if os.path.exists(QUEUE_FILE):
+        with open(QUEUE_FILE, "r", encoding="utf-8") as f:
+            existing = {line.strip() for line in f.read().splitlines() if line.strip()}
+        if keyword in existing:
+            return
+    with open(QUEUE_FILE, "a", encoding="utf-8") as f:
+        f.write("\n" + keyword)
+
 def prioritize_keywords(keywords):
     p = [k for k in keywords if any(x in k for x in PRIORITY_KEYWORDS)]
     n = [k for k in keywords if k not in p]
     return p + n
 
 def generate_title_variants(keyword):
-    # 🔥 AI 편집장과 목표를 일치시키기 위해, 여기서 억지로 5개를 만들지 않고 핵심 방향만 던져줍니다.
     return f"{keyword} 핵심 정보"
 
 def generate_alt_text(keyword, context):
@@ -121,10 +166,8 @@ def break_paragraphs(text):
             result += "\n\n"  
     return result
 
-# 기존 get_recent_posts 함수 전체를 이걸로 교체하세요.
 def get_recent_posts(service, blog_id):
     try:
-        # 🔥 최근 40개의 글을 가져와서 중복을 피합니다!
         posts = service.posts().list(blogId=blog_id, maxResults=40, fetchBodies=False).execute()
         return [{"title": p["title"], "url": p["url"]} for p in posts.get("items", [])]
     except Exception as e:
@@ -159,7 +202,7 @@ def insert_html_at_pos(html_content, insert_str, pos):
     return html_content[:pos] + insert_str + html_content[pos:]
 
 # ==================== [3] 네이버 수집 ====================
-def get_naver_target_data(recent_posts): # 매개변수 추가됨!
+def get_naver_target_data(recent_posts):
     recent_titles = [p['title'] for p in recent_posts]
     now = datetime.now()
     
@@ -174,6 +217,7 @@ def get_naver_target_data(recent_posts): # 매개변수 추가됨!
     main_country = current_group[0] 
     sub_country = random.choice(current_group[1:]) if len(current_group) > 1 else main_country
     
+    # 사계절 상시 키워드 (계절 전용 키워드는 SEASONAL_KEYWORDS에서 자동 매칭)
     BASE_KEYWORDS = [
         "스마트패스 등록", "인천공항 장기주차장", "인천공항 주차대행", "공항 라운지 무료", "마티나라운지 이용",
         "스카이허브라운지 할인", "기내반입 액체류", "보조배터리 기내반입", "위탁수하물 무게 초과", "셀프백드랍 이용법",
@@ -196,58 +240,65 @@ def get_naver_target_data(recent_posts): # 매개변수 추가됨!
         "무료취소 결제 시점", "노쇼 위약금 규정", "조식 추가 현장결제", "연박 객실 청소", "커넥팅룸 예약 방법",
         "엑스트라베드 추가요금", "호캉스 라운지 혜택", "일일투어 취소 규정", "패스트패스 입장권", "포켓와이파이 대여",
         "데이터 로밍 차단", "해외 전화 수신요금", "멀티어댑터 전압 확인",
-        "삿포로 겨울여행 준비", "오타루 당일치기 동선", "유후인 료칸 예약", "벳푸 온천 여행", "하코네 프리패스",
-        "가마쿠라 당일치기", "다카마쓰 소도시 여행", "마쓰야마 무료셔틀", "요나고 돗토리 이동", "미야코지마 자유여행",
-        "타이중 근교 투어", "가오슝 자유여행 동선", "나트랑 리조트 픽업", "푸꾸옥 빈원더스 동선", "다낭 바나힐 케이블카",
-        "치앙마이 올드타운 숙소", "방콕 파타야 이동", "싱가포르 유니버설스튜디오", "마카오 페리 터미널", "상하이 무비자 입국",
+        "하코네 프리패스", "가마쿠라 당일치기", "다카마쓰 소도시 여행", "마쓰야마 무료셔틀", "요나고 돗토리 이동",
+        "미야코지마 자유여행", "타이중 근교 투어", "가오슝 자유여행 동선", "나트랑 리조트 픽업", "푸꾸옥 빈원더스 동선",
+        "다낭 바나힐 케이블카", "치앙마이 올드타운 숙소", "방콕 파타야 이동", "싱가포르 유니버설스튜디오",
+        "마카오 페리 터미널", "상하이 무비자 입국",
         f"{main_country} 입국신고서", f"{sub_country} 공항 이동"
     ]
 
     if not os.path.exists(QUEUE_FILE) or os.stat(QUEUE_FILE).st_size == 0:
-        sorted_keys = prioritize_keywords(BASE_KEYWORDS) + PRIORITY_KEYWORDS  
+        sorted_keys = prioritize_keywords(BASE_KEYWORDS)
         with open(QUEUE_FILE, "w", encoding="utf-8") as f: f.write("\n".join(sorted_keys))
 
-    with open(QUEUE_FILE, "r", encoding="utf-8") as f: lines = f.read().splitlines()
+    with open(QUEUE_FILE, "r", encoding="utf-8") as f:
+        lines = [line.strip() for line in f.read().splitlines() if line.strip()]
     if not lines: 
-        lines = prioritize_keywords(BASE_KEYWORDS) + PRIORITY_KEYWORDS
+        lines = prioritize_keywords(BASE_KEYWORDS)
 
-    # 🔥 중복 방지 핵심 로직: 큐에 있는 키워드가 최근 40개 글 제목에 있으면 패스!
+    # 현재 월 기준 계절 키워드 자동 선별 (35% 확률로 미발행 계절 키워드 우선 발행)
     target_query = None
-    for query in lines:
-        core_word = query.split()[0] # 예: "일본 환전"에서 "일본" 추출
-        if not any(core_word in title for title in recent_titles):
-            target_query = query
-            break
-            
-    # 만약 큐에 있는 게 전부 다 겹치면(그럴 확률은 적지만), 랜덤으로 하나 뽑음
+    is_seasonal = False
+    season_candidates = [
+        q for q in get_current_season_keywords(now.month)
+        if not any(q.split()[0] in title for title in recent_titles)
+    ]
+
+    if season_candidates and random.random() < 0.35:
+        target_query = random.choice(season_candidates)
+        is_seasonal = True
+
+    # 계절 키워드가 선택되지 않은 경우 사계절 큐에서 미발행 키워드 추출
+    if not target_query:
+        for query in lines:
+            core_word = query.split()[0]
+            if not any(core_word in title for title in recent_titles):
+                target_query = query
+                break
+
     if not target_query: 
         target_query = random.choice(lines)
     
     title_guide = generate_title_variants(target_query)
     related_keyword = get_content_chain(target_query)
     
-    # 사용한 키워드는 맨 아래로 보냄
-    if target_query in lines:
+    # 사계절 큐 키워드만 순환 저장 (계절 키워드는 큐 파일에 섞지 않음)
+    if not is_seasonal and target_query in lines:
         lines.remove(target_query)
         lines.append(target_query)
         with open(QUEUE_FILE, "w", encoding="utf-8") as f: f.write("\n".join(lines))
 
-   # 🔥 검색어 꼬리표를 대폭 확장하여 네이버에서 매번 새로운 뼈대 글을 수집하게 만듭니다.
     search_suffix = [
-        # 기본 정보 & 꿀팁
         " 장단점", " 꿀팁", " 사용법", " 완벽 가이드", " 총정리", " 비교 추천",
-        # 문제 해결 & 주의사항
         " 설정 오류", " 안터짐", " 환불", " 주의사항", " 실패 후기", " 치명적 단점",
-        # 신뢰도 & 후기
         " 실제 후기", " 내돈내산", " 팩트체크", " 솔직 리뷰", " 한달 사용기",
-        # 비용 & 혜택
         " 가격 비교", " 할인 팁", " 비용 절약", " 무료 혜택", " 최저가 예약"
     ]
     actual_search_query = f"{target_query}{random.choice(search_suffix)}"
     
-    print(f"🎯 [2/6] 키워드: {target_query} (검색어: {actual_search_query})")
+    mode_tag = "계절 자동" if is_seasonal else "사계절 큐"
+    print(f"🎯 [2/6] [{mode_tag}] 키워드: {target_query} (검색어: {actual_search_query})")
     
-    # 셀레니움 수집 로직 (이하 기존과 동일)
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
@@ -290,347 +341,4 @@ def get_naver_target_data(recent_posts): # 매개변수 추가됨!
             print(f"🔍 [3/6] 총 {len(selected_links)}개 블로그 추출 중... (뼈대: {skeleton_title})")
             
             for i, item in enumerate(selected_links):
-                mobile_url = item['url'].replace("blog.naver.com", "m.blog.naver.com")
-                driver.get(mobile_url)
-                time.sleep(1.5)
-                try: text = driver.find_element(By.CSS_SELECTOR, ".se-main-container").text
-                except:
-                    try: text = driver.find_element(By.TAG_NAME, "body").text
-                    except: text = "수집 실패"
-                
-                if i == 0:
-                    role = "Main Skeleton"
-                    scraped_data += f"--- [{role}: {item['title']}] ---\n{text[:2000]}\n\n"
-                else:
-                    role = "Real Review Insight"
-                    scraped_data += f"--- [{role}: {item['title']}] ---\n{text[:500]}\n\n"
-    finally: driver.quit()
-    return target_query, target_blog_url, scraped_data, title_guide, related_keyword, skeleton_title
-
-# ==================== [4] 유동적 SVG 요약 카드 (🔥 썸네일 가독성 극대화) ====================
-def create_summary_card_tag(summary_list, alt_text):
-    # 🚨 AI가 요약(리스트)을 빼먹거나 에러를 냈을 때 파이썬이 뻗지 않도록 튼튼한 방어막 추가
-    if not isinstance(summary_list, list):
-        summary_list = ["📌 핵심 요약", "💰 비용 절약", "✅ 꿀팁 방출"]
-
-    # 🔥 기현님 기획대로 썸네일 최적화를 위해 짧게 컷! (이모지 포함 10글자 내외)
-    safe_list = [str(s).strip()[:10] for s in summary_list if s][:3]
-    while len(safe_list) < 3: safe_list.append("") 
-    
-    # 🔥 font-size를 24 -> 32로 대폭 키우고 줄 간격(y좌표)을 예쁘게 정렬
-    svg_code = f"""
-    <svg width="100%" height="200" viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg">
-      <rect width="600" height="200" fill="#FFF9C4" rx="15"/>
-      <text x="50%" y="60" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif" font-weight="bold" font-size="32" text-anchor="middle" fill="#2c3e50">{safe_list[0]}</text>
-      <text x="50%" y="110" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif" font-weight="bold" font-size="32" text-anchor="middle" fill="#2c3e50">{safe_list[1]}</text>
-      <text x="50%" y="160" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif" font-weight="bold" font-size="32" text-anchor="middle" fill="#2c3e50">{safe_list[2]}</text>
-    </svg>
-    """
-    b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
-    
-    # 🚨 마크다운 절대 금지! 100% HTML <img> 태그로만 반환하여 그림 깨짐 원천 차단
-    return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{alt_text}"/></div>'
-
-# ==================== [5] 원고 생성 (🔥 기현님 오리지널 글맛 유지 + 2단계 에러방어/지도/모방진화 추가) ====================
-def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword, skeleton_title):
-    models_to_try = get_best_models() 
-
-    personas = [
-        "가성비 헌터 블로거", "효율 극대화 출장러", "디테일 끝판왕 J형 여행가",
-        "처음 여행하는 사람 시점", "귀찮음 극혐형 인간", "현지인 빙의 여행객",
-        "프로 봇짐러", "사진에 미친 여행자"
-    ]
-    current_persona = random.choice(personas)
-    
-    # 🔥 수정: 메뉴판 번호표 부여 (AI가 문맥에 [내부링크_0] 형태로 넣기 위함)
-    menu_posts = context_posts[:10] 
-    recent_titles_str = "\n".join([f"- [내부링크_{i}] 제목: {p['title']} (URL: {p['url']})" for i, p in enumerate(menu_posts)])
-
-    now_year = datetime.now().year
-    now_month = datetime.now().month
-
-    # -------------------------------------------------------------------
-    # 👨‍🎨 [1단계 API] 메인 작가 AI (기현님 오리지널 프롬프트 100% 반영 + 강력한 모방 진화)
-    # -------------------------------------------------------------------
-    prompt_writer = f"""
-[타겟 키워드]: {keyword}
-[페르소나]: {current_persona} 
-[내 블로그 다른 글 리스트]: 
-{recent_titles_str}
-
-[🔥 이번 글의 핵심 메인 테마 및 제목 작성 가이드]: 
-제공된 뼈대 블로그의 제목인 **[{skeleton_title}]**이 다루는 특정 상황, 심층 꿀팁을 이번 포스팅의 핵심 앵글로 삼아라. 
-🚨 절대 백과사전처럼 포괄적인 장단점이나 뻔한 소개를 줄줄이 나열하지 마라!
-특정 타겟(예: 가족 여행객, 뚜벅이)이나 특정 상황(예: 수수료 폭탄 방지, 환불 꿀팁, 사기 피하기) 중 딱 **하나의 뾰족한 주제(Niche)**에만 딥다이브(Deep-dive)해서 써라.
-
-[🌟 앵무새 방지 및 자연스러운 톤 지침]:
-- 🚨 "결론부터 말하면", "핵심은 단 하나" 같은 고정된 문구를 매번 첫 문장에 쓰지 마세요.
-- 독자의 고민에 공감하며 자연스럽게 말을 거는 서론으로 시작하세요. (예: "저도 이거 찾느라 고생했는데 드디어 알아냈어요", "직접 써보니 의외로 이 부분이 중요하더라고요")
-- 기계적인 인사는 빼고, 독자에게 즉시 이득이 되는 정보로 시원하게 본론을 여세요.
-
-[10개 블로그 분석 데이터]: 
-{scraped_data}
-
-[미션]: 독자가 즉시 '결정'을 하도록 유도하는, 4,000자~6,000자 분량의 초고밀도 전환형 포스팅을 작성하라.
-**🌟 강력한 모방 및 진화 지시:** 위 10개 블로그 데이터를 베이스로 삼되, 원본에 노출된 '특정 날짜, 타인의 실명, 개인적인 에피소드'는 100% 가공하여 네 페르소나에 맞는 **'새로운 나의 경험담'**으로 완전히 탈바꿈시켜라. 경쟁 글의 장점은 흡수하되, 남의 글을 복사한 티가 절대 나면 안 된다. 더 디테일하고 발전된 형태의 정보를 제공하라. 또한 현재 시점({now_year}년 {now_month}월)과 계절에 맞는 정보와 날짜를 기준으로 작성하고, 2024년·2025년 등 과거 연도나 현재 계절과 맞지 않는 과거 월은 절대 표기하지 마라.
-
-[🔥 핵심 강제 지시사항 - 순수 HTML만 반환 (JSON 포장 절대 금지)]:
-1. **HTML 포맷 및 목차(TOC) 강제 (매우 중요)**: 
-  - 마크다운(`##`, `**`) 절대 금지! 오직 순수 HTML 태그만 사용.
-  - 본문 서론 다음에는 반드시 `<nav><div class='toc-title'>목차</div><ul>...</ul></nav>` 형태의 목차를 작성하라.
-  - 목차의 링크는 `<a href='#sec1'>` 형태로 앵커를 달고, 본문의 소제목 <h2> 태그에는 반드시 `<h2 id='sec1'>` 처럼 id를 일치시켜 클릭 시 정확히 이동하게 하라.
-2. **문맥형 최신 내부링크 (무조건 3개 자연 삽입 강제)**: 
-  - 'Related:' 같은 단독 문단 절대 금지. 문장 안에 [내 블로그 다른 글 리스트] 중 3개를 골라 자연스럽게 버튼 스타일로 녹여라.
-  - 🚨 직접 <a>태그를 만들지 말고 반드시 `자세한 내용은 [내부링크_0]를 참고하세요.` 와 같이 기호로만 적어라.
-3. **중간 CTA (수익 전환 포인트)**: 본문 중간에 클릭을 유도하는 링크를 1개 이상 배치하라. 그리고 무조건 유효한 링크주소로할것 (예: 👉 지금 가장 많이 쓰는 요금제 확인하기)
-4. **🔥무조건 접속되는 오류없이 안전한 구글 외부 링크 (무조건 문맥에 맞는 링크 3개 강제)**: 
-  - 가짜 오류 URL 방지를 위해, 모든 외부 링크는 **반드시 구글 검색 결과 URL** 또는 **구글 맵 검색 URL**로만 정확히 3개 작성하라.
-  - 예시: `<a href='https://www.google.com/search?q=관련+검색어' target='_blank' class='ext-link'>관련 최신정보 구글 검색하기 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
-5. **결정 버튼**: 본문 맨 마지막에 `<h2 id='conclusion'>결론: 그래서 뭐 쓰라고? 또는 주제에 맞게 다른 말투로 쓸것 (상황별 추천)</h2>` 태그를 사용해라.
-6. **표(Table)와 리스트(List) 절대 엄수 (비교 시 무조건 표 사용)**: 
-  - 제품 비교나 장단점 설명 시 절대 줄글로 쓰지 말고, 반드시 `<div class='table-wrapper'><table>...</table></div>` 형태의 완벽한 HTML 표로 작성하라. 
-  - 텍스트 나열은 `<p>` 대신 `<ul><li>...</li></ul>`를 적극 활용해라.
-7. **JSON 에러 파괴 방지**: 본문 안의 모든 HTML 속성은 반드시 **작은따옴표(')**만 써라! (예: `class='ext-link'`)
-8. 🚨 **최고 중요 경고**: 글 맨 끝에 네 대답이나 부연 설명("네 알겠습니다", "작성 완료" 등)을 단 한 글자도 적지 마라! 오직 HTML 소스코드만 출력하라!
-
-[🌟 품질 필터 및 휴먼 톤(Human Tone) 작성 지침]:
-- 기계식 서론 금지: 검색 과정 등 군더더기 금지. 곧바로 핵심 혜택 시작.
-- 리얼리티 경험담: 친한 회원에게 썰 푸는 말투(~했어요, 솔직히 말해서 등) 사용.
-- 완벽한 정보 금지: 일부는 경험처럼 풀고, 반말 느낌이나 감탄문 1~2개 허용.
-- 이유+결과 공식: 모든 문장은 "이유+결과"를 적어라.
-- 문장 길이 섞기, 말투 살짝 흔들기, 반복 패턴 깨기, 이름이나 너무 개인정보는 밝히지 말것, 모방 사이트 이름 금지.
-"""
-
-    print(f"✍️ [4/6] 1단계: 메인 작가 AI가 기현님 스타일의 5,000자 본문을 창작 중입니다...")
-    draft_html = None
-    for attempt, model_name in enumerate(models_to_try, 1):
-        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
-        try:
-            res = requests.post(api_url, json={"contents": [{"parts": [{"text": prompt_writer}]}]}, timeout=180)
-            res.raise_for_status()
-            draft_html = res.json()['candidates'][0]['content']['parts'][0]['text'].replace("```html", "").replace("```", "").strip()
-            break
-        except Exception as e:
-            if "503" in str(e) or "429" in str(e) or "unavailable" in str(e).lower():
-                time.sleep(15 * attempt)
-            else:
-                time.sleep(5)
-            
-    if not draft_html: return None
-
-    # -------------------------------------------------------------------
-    # 🕵️‍♂️ [2단계 API] 편집장 AI (1등 SEO 퓨전 + 초정밀 능동형 지도 + JSON)
-    # -------------------------------------------------------------------
-    prompt_editor = f"""
-당신은 완벽한 SEO 편집장입니다. 아래 작성된 [초안 블로그 본문]을 읽고, 메타데이터 JSON을 생성하라.
-
-[초안 블로그 본문]:
-{draft_html[:3000]} ... (중략)
-
-**[최종 제목(title) 생성 규칙]**: 
-- 현재 시점은 {now_year}년 {now_month}월이다. 제목과 본문에 2024년, 2025년 등 과거 연도나 현재 계절과 맞지 않는 과거 월(예: 11월에 4월/5월)을 절대 표기하지 마라.
-- "2026년 최신판!", "확인해 보세요" 같은 인위적 수식어와 "J형 여행가", "프로 봇짐러" 같은 반복 페르소나 문구를 제목에 넣지 마라.
-- '{keyword}'를 포함하여 핵심 해결책이 드러나는 자연스럽고 담백한 정보형 제목을 작성하라.
-
-**[🎯 초정밀 능동형 지도(map_location) 하네스 규칙]**:
-본문을 읽고 독자가 가장 길을 찾고 싶어 할 실물 장소를 '능동적으로 추론'하여 단답형으로 지정하라.
-1. 해외 현지 (맛집/관광): "간사이 국제공항", "다낭 한시장", "신주쿠역" 등 해당 지역의 핵심 랜드마크.
-2. 국내 출국 (편의시설): "인천공항 마티나 라운지", "신라면세점 서울점", "서울역 도심공항터미널" 등 구체적인 시설명.
-3. 온라인/무형 (환전/보험/통신/비자): "명동 환전소", "인천공항 제1여객터미널", "인천공항 로밍센터", "외교부 여권민원실" 등 서비스와 직결되는 대표 오프라인 장소.
-- 스쳐 지나가는 화장실, 수영장, 단순 도로명 등은 절대 금지.
-
-[출력 형식 가이드]: 순수 JSON 문자열만 반환하라.
-JSON Keys: 
-- title: 검색 의도에 맞춘 자연스러운 정보형 제목 (과거 연도 및 과도한 어그로 금지)
-- meta_desc: 150자 요약
-- meta_keys: '{keyword}'가 포함된 쉼표 구분 키워드
-- slug: 영문 짧은 주소
-- summary: ["✈️ 짧은단어", "💰 짧은단어", "✅ 짧은단어"] (6글자 이하 3개)
-- map_location: 능동적 추론 장소명 1개
-- category: ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"] 중 1개
-"""
-
-    print(f"✨ [5/6] 2단계: 편집장 AI가 기현님표 제목과 메타데이터(JSON)를 포장 중입니다...")
-    final_data = None
-    for attempt, model_name in enumerate(models_to_try, 1):
-        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
-        try:
-            res = requests.post(api_url, json={"contents": [{"parts": [{"text": prompt_editor}]}], "generationConfig": {"responseMimeType": "application/json"}}, timeout=180)
-            res.raise_for_status()
-            final_data = json.loads(res.json()['candidates'][0]['content']['parts'][0]['text'].replace("```json", "").replace("```", "").strip())
-            break
-        except Exception as e:
-            time.sleep(5)
-            
-    if not final_data: return None
-
-    # -------------------------------------------------------------------
-    # 🐍 [3단계] 파이썬 조립 (🔥 수정: 내부링크를 진짜 파란색 버튼 태그로 치환)
-    # -------------------------------------------------------------------
-    for i, p in enumerate(menu_posts):
-        link_html = f" <a href='{p['url']}' target='_blank' class='int-link'>🔗 {p['title']} (새창)</a> "
-        draft_html = draft_html.replace(f"[내부링크_{i}]", link_html)
-        
-    final_data['content'] = draft_html 
-    final_data['used_references'] = [target_blog_url]
-    
-    return final_data
-
-# ==================== [6] 메인 실행 ====================
-def run_automation():
-    print("🚀 블로그 자동 성장 시스템 가동...")
-    
-    creds = None
-    token_base64 = os.environ.get("BLOGGER_TOKEN_PKL")
-    if token_base64:
-        with open('token.json', 'wb') as f: 
-            f.write(base64.b64decode(token_base64))
-            
-    if os.path.exists('token.json'):
-        with open('token.json', 'rb') as t: 
-            creds = pickle.load(t)
-        if creds and creds.expired and creds.refresh_token: 
-            creds.refresh(Request())
-            
-    if not creds: 
-        print("❌ 인증 정보가 없습니다.")
-        return
-        
-    service = build('blogger', 'v3', credentials=creds)
-    print("✅ [1/6] Blogger 인증 완료")
-
-    recent_posts = get_recent_posts(service, BLOG_ID)
-    keyword, target_url, scraped_data, title_guide, related_keyword, skeleton_title = get_naver_target_data(recent_posts) # <-- recent_posts 추가!
-    
-    filtered_posts = get_related_posts_by_keyword(recent_posts, keyword)
-    context_posts = filtered_posts if len(filtered_posts) >= 2 else recent_posts
-
-    data = generate_master_content(keyword, target_url, scraped_data, title_guide, context_posts, related_keyword, skeleton_title)
-    
-    if not data: 
-        print("❌ 생성 실패. 키워드를 큐에 재등록합니다.")
-        with open(QUEUE_FILE, "a", encoding="utf-8") as f: 
-            f.write("\n" + keyword)
-        return
-
-    location = data.get('map_location', '인천공항 제1여객터미널').strip()
-    map_html = create_map_embed(location)
-    print(f"🗺️ [System] AI가 분석한 '{location}' 기반 구글맵 코드를 생성했습니다.")
-
-    ads_code = """
-    <div style="margin:45px 0;">
-        <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-2303846706279700" data-ad-slot="1632085406" data-ad-format="auto" data-full-width-responsive="true"></ins>
-        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-    </div>
-    """
-    
-    alt_text = generate_alt_text(keyword, "핵심 요약")
-    card_tag = create_summary_card_tag(data.get('summary', ["핵심정리", "비용절약", "시간단축"]), alt_text)
-    
-    content = data['content']
-    
-    content = humanize_text(content)
-    content = break_paragraphs(content)
-
-    content = re.sub(r'^##\s+(.+)$', r'<h2>\1</h2>', content, flags=re.MULTILINE)
-    content = re.sub(r'^###\s+(.+)$', r'<h3>\1</h3>', content, flags=re.MULTILINE)
-    content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', content)
-    
-    if "<p>" not in content and "<br>" not in content:
-        content = content.replace('\n\n', '<br><br>').replace('\n', '<br>')
-
-    top_insertion = f"{card_tag}{ads_code}"
-    nav_match = re.search(r'</nav>', content, re.IGNORECASE)
-    if nav_match:
-        content = insert_html_at_pos(content, top_insertion, nav_match.end())
-    else:
-        content = top_insertion + content
-
-    content = re.sub(r'(<h2[^>]*>)', ads_code + r'\1', content, count=1)
-
-    h2_matches = list(re.finditer(r'<h2[^>]*>(.*?)</h2>', content, re.IGNORECASE | re.DOTALL))
-    map_inserted = False
-    
-    location_keywords = ["위치", "공항", "지도", "가는", "어디", location.split()[0]]
-    
-    for match in h2_matches:
-        h2_text = match.group(1)
-        if any(k in h2_text for k in location_keywords):
-            content = insert_html_at_pos(content, map_html, match.end())
-            map_inserted = True
-            break
-            
-    if not map_inserted and len(h2_matches) > 0:
-        target_match = h2_matches[1] if len(h2_matches) > 1 else h2_matches[0]
-        content = insert_html_at_pos(content, map_html, target_match.end())
-
-    h2_matches = list(re.finditer(r'<h2[^>]*>', content, re.IGNORECASE))
-    if len(h2_matches) >= 3:
-        mid_idx = len(h2_matches) // 2
-        content = insert_html_at_pos(content, ads_code, h2_matches[mid_idx].start())
-
-    content += ads_code 
-
-    final_html = f"""
-    <style>
-        html {{ scroll-behavior: smooth; }} 
-        .entry-content {{ font-size: 16px; line-height: 1.8; color: #333; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; word-break: keep-all; }} 
-        .entry-content h2 {{ font-size: 24px !important; color: #2c3e50; border-left: 6px solid #3498db; padding: 8px 15px; margin: 45px 0 20px; background: #f8f9fa; scroll-margin-top: 100px; }} 
-        .entry-content h3 {{ font-size: 20px !important; color: #2980b9; border-bottom: 2px solid #3498db; padding-bottom: 8px; margin: 30px 0 15px; scroll-margin-top: 100px; }} 
-        .entry-content p {{ margin-bottom: 20px; font-size: 16px; }} 
-        
-        .table-wrapper {{ width: 100%; overflow-x: auto; margin: 25px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-radius: 8px; }}
-        .entry-content table {{ width: 100%; min-width: 500px; border-collapse: collapse; background: #fff; font-size: 15px; }} 
-        .entry-content th {{ background: #3498db; color: white; padding: 12px; border: 1px solid #2980b9; font-weight:bold; white-space: nowrap; }} 
-        .entry-content td {{ border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: middle; }} 
-        
-        .entry-content ul {{ background: #fdfdfd; border-radius: 8px; padding: 20px 20px 20px 40px; border: 1px solid #eee; margin: 20px 0; }}
-        .entry-content li {{ margin-bottom: 10px; font-size: 16px; line-height: 1.7; }}
-        
-        .entry-content nav {{ background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 30px; }} 
-        .toc-title {{ font-size: 18px; font-weight: bold; color: #2c3e50; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 8px; }}
-        .entry-content nav ul {{ background: transparent; border: none; padding: 0; margin: 0; list-style: none; }} 
-        .entry-content nav li {{ margin-bottom: 10px; }}
-        .entry-content nav a {{ color: #34495e; text-decoration: none; font-size: 16px; font-weight: 600; border-bottom: 1px dashed #bdc3c7; transition: color 0.3s; }} 
-        .entry-content nav a:hover {{ color: #3498db; border-bottom-color: #3498db; }}
-        
-        .entry-content a {{ color: #2980b9; text-decoration: underline; font-weight: bold; transition: all 0.2s; }}
-        .entry-content a:hover {{ color: #1f618d; }}
-        .ext-link {{ color: #fff !important; background-color: #e67e22; padding: 4px 12px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-bottom: none; }}
-        .ext-link:hover {{ background-color: #d35400; }}
-        .int-link {{ color: #fff !important; background-color: #3498db; padding: 4px 12px; border-radius: 6px; text-decoration: none !important; display: inline-block; margin: 5px 0; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-bottom: none; }}
-        .int-link:hover {{ background-color: #2980b9; }}
-        .anchor-link {{ color: #27ae60 !important; background-color: #eafaf1; padding: 4px 10px; border-radius: 6px; text-decoration: none !important; font-size: 16px; display: inline-block; margin: 5px 0; border: 1px solid #2ecc71; }}
-        
-        .entry-content .intro {{ background: #f0f7ff; padding: 18px 22px; border-radius: 10px; border-left: 6px solid #3498db; margin-bottom: 30px; font-weight: bold; font-size: 17px; line-height: 1.7; }} 
-    </style>
-    <div class="entry-content">{content}</div>
-    """
-
-    # 🔥 '여행 꿀팁'을 삭제하고, 6개 옵션 중 딱 1개만 선택하도록 수정
-    chosen_category = data.get('category', '').strip()
-    if chosen_category not in LABEL_OPTIONS: 
-        chosen_category = "여행 준비 팁" # 리스트에 없는 카테고리가 올 경우 기본값 적용
-        
-    final_labels = [chosen_category] # 오직 선택된 1개의 라벨만 사용
-    
-    sleep_time = random.randint(180, 600)
-    print(f"⏳ [System] 봇으로 걸리지 않기 위해 {sleep_time}초 대기 후 발행합니다...")
-    time.sleep(sleep_time)
-    
-    # 🔥 이 한 줄만 추가하세요! (8분 쉬어서 끊어진 연결을 다시 붙이는 겁니다)
-    service = build('blogger', 'v3', credentials=creds)
-    
-    try:
-        slug_text = data.get('slug', 'auto-post')
-        print(f"🚀 [6/6] 최종 업로드 중... ({slug_text})")
-        temp_post = service.posts().insert(blogId=BLOG_ID, body={"title": slug_text, "content": "loading...", "labels": final_labels}, isDraft=False).execute()
-        service.posts().patch(blogId=BLOG_ID, postId=temp_post['id'], body={"title": data['title'], "content": final_html, "customMetaData": data.get('meta_desc', '')}).execute() 
-        print(f"✨ [완료] {data['title']}")
-    except Exception as e: 
-        print(f"❌ 실패: {e}")
-        with open(QUEUE_FILE, "a", encoding="utf-8") as f: 
-            f.write("\n" + keyword)
-
-if __name__ == "__main__":
-    run_automation()
+                mobile_url = item['url'].replace
