@@ -309,6 +309,7 @@ def create_summary_card_tag(summary_list, alt_text):
     
     # 🚨 마크다운 절대 금지! 100% HTML <img> 태그로만 반환하여 그림 깨짐 원천 차단
     return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{alt_text}"/></div>'
+
 # ==================== [5] 원고 생성 (🔥 기현님 오리지널 글맛 유지 + 2단계 에러방어/지도/모방진화 추가) ====================
 def generate_master_content(keyword, target_blog_url, scraped_data, title_guide, context_posts, related_keyword, skeleton_title):
     models_to_try = get_best_models() 
@@ -323,6 +324,9 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
     # 🔥 수정: 메뉴판 번호표 부여 (AI가 문맥에 [내부링크_0] 형태로 넣기 위함)
     menu_posts = context_posts[:10] 
     recent_titles_str = "\n".join([f"- [내부링크_{i}] 제목: {p['title']} (URL: {p['url']})" for i, p in enumerate(menu_posts)])
+
+    now_year = datetime.now().year
+    now_month = datetime.now().month
 
     # -------------------------------------------------------------------
     # 👨‍🎨 [1단계 API] 메인 작가 AI (기현님 오리지널 프롬프트 100% 반영 + 강력한 모방 진화)
@@ -347,24 +351,24 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 {scraped_data}
 
 [미션]: 독자가 즉시 '결정'을 하도록 유도하는, 4,000자~6,000자 분량의 초고밀도 전환형 포스팅을 작성하라.
-**🌟 강력한 모방 및 진화 지시:** 위 10개 블로그 데이터를 베이스로 삼되, 원본에 노출된 '특정 날짜, 타인의 실명, 개인적인 에피소드'는 100% 가공하여 네 페르소나에 맞는 **'새로운 나의 경험담'**으로 완전히 탈바꿈시켜라. 경쟁 글의 장점은 흡수하되, 남의 글을 복사한 티가 절대 나면 안 된다. 더 디테일하고 발전된 형태의 정보를 제공하라. 또한 최신의 정보와 날짜를 기준으로 작성하라.
+**🌟 강력한 모방 및 진화 지시:** 위 10개 블로그 데이터를 베이스로 삼되, 원본에 노출된 '특정 날짜, 타인의 실명, 개인적인 에피소드'는 100% 가공하여 네 페르소나에 맞는 **'새로운 나의 경험담'**으로 완전히 탈바꿈시켜라. 경쟁 글의 장점은 흡수하되, 남의 글을 복사한 티가 절대 나면 안 된다. 더 디테일하고 발전된 형태의 정보를 제공하라. 또한 현재 시점({now_year}년 {now_month}월)과 계절에 맞는 정보와 날짜를 기준으로 작성하고, 2024년·2025년 등 과거 연도나 현재 계절과 맞지 않는 과거 월은 절대 표기하지 마라.
 
 [🔥 핵심 강제 지시사항 - 순수 HTML만 반환 (JSON 포장 절대 금지)]:
 1. **HTML 포맷 및 목차(TOC) 강제 (매우 중요)**: 
-   - 마크다운(`##`, `**`) 절대 금지! 오직 순수 HTML 태그만 사용.
-   - 본문 서론 다음에는 반드시 `<nav><div class='toc-title'>목차</div><ul>...</ul></nav>` 형태의 목차를 작성하라.
-   - 목차의 링크는 `<a href='#sec1'>` 형태로 앵커를 달고, 본문의 소제목 <h2> 태그에는 반드시 `<h2 id='sec1'>` 처럼 id를 일치시켜 클릭 시 정확히 이동하게 하라.
+  - 마크다운(`##`, `**`) 절대 금지! 오직 순수 HTML 태그만 사용.
+  - 본문 서론 다음에는 반드시 `<nav><div class='toc-title'>목차</div><ul>...</ul></nav>` 형태의 목차를 작성하라.
+  - 목차의 링크는 `<a href='#sec1'>` 형태로 앵커를 달고, 본문의 소제목 <h2> 태그에는 반드시 `<h2 id='sec1'>` 처럼 id를 일치시켜 클릭 시 정확히 이동하게 하라.
 2. **문맥형 최신 내부링크 (무조건 3개 자연 삽입 강제)**: 
-   - 'Related:' 같은 단독 문단 절대 금지. 문장 안에 [내 블로그 다른 글 리스트] 중 3개를 골라 자연스럽게 버튼 스타일로 녹여라.
-   - 🚨 직접 <a>태그를 만들지 말고 반드시 `자세한 내용은 [내부링크_0]를 참고하세요.` 와 같이 기호로만 적어라.
+  - 'Related:' 같은 단독 문단 절대 금지. 문장 안에 [내 블로그 다른 글 리스트] 중 3개를 골라 자연스럽게 버튼 스타일로 녹여라.
+  - 🚨 직접 <a>태그를 만들지 말고 반드시 `자세한 내용은 [내부링크_0]를 참고하세요.` 와 같이 기호로만 적어라.
 3. **중간 CTA (수익 전환 포인트)**: 본문 중간에 클릭을 유도하는 링크를 1개 이상 배치하라. 그리고 무조건 유효한 링크주소로할것 (예: 👉 지금 가장 많이 쓰는 요금제 확인하기)
 4. **🔥무조건 접속되는 오류없이 안전한 구글 외부 링크 (무조건 문맥에 맞는 링크 3개 강제)**: 
-   - 가짜 오류 URL 방지를 위해, 모든 외부 링크는 **반드시 구글 검색 결과 URL** 또는 **구글 맵 검색 URL**로만 정확히 3개 작성하라.
-   - 예시: `<a href='https://www.google.com/search?q=관련+검색어' target='_blank' class='ext-link'>관련 최신정보 구글 검색하기 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
+  - 가짜 오류 URL 방지를 위해, 모든 외부 링크는 **반드시 구글 검색 결과 URL** 또는 **구글 맵 검색 URL**로만 정확히 3개 작성하라.
+  - 예시: `<a href='https://www.google.com/search?q=관련+검색어' target='_blank' class='ext-link'>관련 최신정보 구글 검색하기 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
 5. **결정 버튼**: 본문 맨 마지막에 `<h2 id='conclusion'>결론: 그래서 뭐 쓰라고? 또는 주제에 맞게 다른 말투로 쓸것 (상황별 추천)</h2>` 태그를 사용해라.
 6. **표(Table)와 리스트(List) 절대 엄수 (비교 시 무조건 표 사용)**: 
-   - 제품 비교나 장단점 설명 시 절대 줄글로 쓰지 말고, 반드시 `<div class='table-wrapper'><table>...</table></div>` 형태의 완벽한 HTML 표로 작성하라. 
-   - 텍스트 나열은 `<p>` 대신 `<ul><li>...</li></ul>`를 적극 활용해라.
+  - 제품 비교나 장단점 설명 시 절대 줄글로 쓰지 말고, 반드시 `<div class='table-wrapper'><table>...</table></div>` 형태의 완벽한 HTML 표로 작성하라. 
+  - 텍스트 나열은 `<p>` 대신 `<ul><li>...</li></ul>`를 적극 활용해라.
 7. **JSON 에러 파괴 방지**: 본문 안의 모든 HTML 속성은 반드시 **작은따옴표(')**만 써라! (예: `class='ext-link'`)
 8. 🚨 **최고 중요 경고**: 글 맨 끝에 네 대답이나 부연 설명("네 알겠습니다", "작성 완료" 등)을 단 한 글자도 적지 마라! 오직 HTML 소스코드만 출력하라!
 
@@ -402,21 +406,21 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 [초안 블로그 본문]:
 {draft_html[:3000]} ... (중략)
 
-**[🔥 최종 제목(title) 생성 특명 - 100% 자연스러운 한국어 문장]**: 
-- 🚨 "2026년 최신판!", "확인해 보세요 🚀" 같은 인위적인 수식어 조합을 절대 쓰지 마세요.
-- 네이버 상위 노출 뼈대 제목인 **[{skeleton_title}]**의 장점만 흡수해서, 사람이 직접 쓴 것 같은 자연스러운 문장형 제목을 만드세요.
-- '{keyword}'는 반드시 포함하되, 이웃에게 꿀팁을 전수하는 듯한 솔직하고 담백한 제목이 가장 좋습니다.
+**[최종 제목(title) 생성 규칙]**: 
+- 현재 시점은 {now_year}년 {now_month}월이다. 제목과 본문에 2024년, 2025년 등 과거 연도나 현재 계절과 맞지 않는 과거 월(예: 11월에 4월/5월)을 절대 표기하지 마라.
+- "2026년 최신판!", "확인해 보세요" 같은 인위적 수식어와 "J형 여행가", "프로 봇짐러" 같은 반복 페르소나 문구를 제목에 넣지 마라.
+- '{keyword}'를 포함하여 핵심 해결책이 드러나는 자연스럽고 담백한 정보형 제목을 작성하라.
 
 **[🎯 초정밀 능동형 지도(map_location) 하네스 규칙]**:
 본문을 읽고 독자가 가장 길을 찾고 싶어 할 실물 장소를 '능동적으로 추론'하여 단답형으로 지정하라.
 1. 해외 현지 (맛집/관광): "간사이 국제공항", "다낭 한시장", "신주쿠역" 등 해당 지역의 핵심 랜드마크.
-2. 국내 출국 (편의시설): "인천공항 마티나 라운지", "신라면세점 서울점", "서울역 도심공항터미널" 등 конкрет한 시설명.
+2. 국내 출국 (편의시설): "인천공항 마티나 라운지", "신라면세점 서울점", "서울역 도심공항터미널" 등 구체적인 시설명.
 3. 온라인/무형 (환전/보험/통신/비자): "명동 환전소", "인천공항 제1여객터미널", "인천공항 로밍센터", "외교부 여권민원실" 등 서비스와 직결되는 대표 오프라인 장소.
-* 스쳐 지나가는 화장실, 수영장, 단순 도로명 등은 절대 금지.
+- 스쳐 지나가는 화장실, 수영장, 단순 도로명 등은 절대 금지.
 
 [출력 형식 가이드]: 순수 JSON 문자열만 반환하라.
 JSON Keys: 
-- title: SEO 퓨전이 적용된 4단 콤보 완벽 어그로 제목
+- title: 검색 의도에 맞춘 자연스러운 정보형 제목 (과거 연도 및 과도한 어그로 금지)
 - meta_desc: 150자 요약
 - meta_keys: '{keyword}'가 포함된 쉼표 구분 키워드
 - slug: 영문 짧은 주소
@@ -494,7 +498,6 @@ def run_automation():
 
     ads_code = """
     <div style="margin:45px 0;">
-        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2303846706279700" crossorigin="anonymous"></script>
         <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-2303846706279700" data-ad-slot="1632085406" data-ad-format="auto" data-full-width-responsive="true"></ins>
         <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
     </div>
@@ -548,8 +551,6 @@ def run_automation():
     content += ads_code 
 
     final_html = f"""
-    <meta name="description" content="{data.get('meta_desc', '')}">
-    <meta name="keywords" content="{data.get('meta_keys', '')}">
     <style>
         html {{ scroll-behavior: smooth; }} 
         .entry-content {{ font-size: 16px; line-height: 1.8; color: #333; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; word-break: keep-all; }} 
