@@ -1,4 +1,5 @@
 import os
+import html
 import pickle
 import time
 import json
@@ -121,12 +122,13 @@ def humanize_text(text):
 
 def break_paragraphs(text):
     sentences = text.split(". ")
-    result = ""
-    for s in sentences:
-        result += s + ". "
-        if random.random() < 0.2:
-            result += "\n\n"
-    return result
+    result = []
+    for i, s in enumerate(sentences):
+        chunk = s + (". " if i < len(sentences) - 1 else "")
+        if i < len(sentences) - 1 and random.random() < 0.2:
+            chunk += "\n\n"
+        result.append(chunk)
+    return "".join(result)
 
 
 def get_recent_posts(service, blog_id):
@@ -153,6 +155,7 @@ def get_related_posts_by_keyword(posts, keyword):
 def create_map_embed(location):
     query = urllib.parse.quote(location)
     map_link = f"https://maps.google.com/maps?q={query}"
+    safe_location = html.escape(location)
 
     return f'''
     <div style="margin:40px 0; border-radius:12px; overflow:hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1); background:#fff; padding:15px; text-align:center;">
@@ -161,7 +164,7 @@ def create_map_embed(location):
             width="100%" height="350" style="border:0; border-radius:8px;"
             allowfullscreen="" loading="lazy">
         </iframe>
-        <a href="{map_link}" target="_blank" style="display:inline-block; margin-top:15px; padding:12px 25px; background-color:#3498db; color:#fff; font-weight:bold; font-size:16px; border-radius:8px; text-decoration:none; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">{location} 지도를 클릭해서 위치를 참고하세요 (새창 열기)</a>
+        <a href="{map_link}" target="_blank" style="display:inline-block; margin-top:15px; padding:12px 25px; background-color:#3498db; color:#fff; font-weight:bold; font-size:16px; border-radius:8px; text-decoration:none; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">🗺️ {safe_location} 지도를 클릭해서 위치를 참고하세요 (새창 열기)</a>
     </div>
     '''
 
@@ -187,6 +190,7 @@ def get_naver_target_data(recent_posts):
     sub_country = random.choice(current_group[1:]) if len(current_group) > 1 else main_country
 
     BASE_KEYWORDS = [
+        "삿포로 겨울여행 준비", "오타루 당일치기 동선", "유후인 료칸 예약", "벳푸 온천 여행", "하코네 프리패스",
         "스마트패스 등록", "인천공항 장기주차장", "인천공항 주차대행", "공항 라운지 무료", "마티나라운지 이용",
         "스카이허브라운지 할인", "기내반입 액체류", "보조배터리 기내반입", "위탁수하물 무게 초과", "셀프백드랍 이용법",
         "모바일 체크인 방법", "경유 수하물 연결", "저비용항공 좌석 지정", "비상구 좌석 조건", "항공권 이름 수정",
@@ -208,7 +212,6 @@ def get_naver_target_data(recent_posts):
         "무료취소 결제 시점", "노쇼 위약금 규정", "조식 추가 현장결제", "연박 객실 청소", "커넥팅룸 예약 방법",
         "엑스트라베드 추가요금", "호캉스 라운지 혜택", "일일투어 취소 규정", "패스트패스 입장권", "포켓와이파이 대여",
         "데이터 로밍 차단", "해외 전화 수신요금", "멀티어댑터 전압 확인",
-        "삿포로 겨울여행 준비", "오타루 당일치기 동선", "유후인 료칸 예약", "벳푸 온천 여행", "하코네 프리패스",
         "가마쿠라 당일치기", "다카마쓰 소도시 여행", "마쓰야마 무료셔틀", "요나고 돗토리 이동", "미야코지마 자유여행",
         "타이중 근교 투어", "가오슝 자유여행 동선", "나트랑 리조트 픽업", "푸꾸옥 빈원더스 동선", "다낭 바나힐 케이블카",
         "치앙마이 올드타운 숙소", "방콕 파타야 이동", "싱가포르 유니버설스튜디오", "마카오 페리 터미널", "상하이 무비자 입국",
@@ -323,11 +326,12 @@ def get_naver_target_data(recent_posts):
 # ==================== [4] 유동적 SVG 요약 카드 ====================
 def create_summary_card_tag(summary_list, alt_text):
     if not isinstance(summary_list, list):
-        summary_list = ["핵심 요약", "비용 절약", "실전 가이드"]
+        summary_list = ["📌 핵심 요약", "💰 비용 절약", "✅ 꿀팁 방출"]
 
-    safe_list = [str(s).strip()[:10] for s in summary_list if s][:3]
+    safe_list = [html.escape(str(s).strip()[:10]) for s in summary_list if str(s).strip()][:3]
     while len(safe_list) < 3:
         safe_list.append("")
+    safe_alt = html.escape(str(alt_text), quote=True)
 
     svg_code = f"""
     <svg width="100%" height="200" viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg">
@@ -339,7 +343,7 @@ def create_summary_card_tag(summary_list, alt_text):
     """
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
 
-    return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{alt_text}"/></div>'
+    return f'<div style="text-align:center; margin:30px 0;"><img src="data:image/svg+xml;base64,{b64_svg}" style="max-width:100%; height:auto; border-radius:15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" alt="{safe_alt}"/></div>'
 
 
 # ==================== [5] 원고 생성 ====================
@@ -359,6 +363,17 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
     now_year = datetime.now().year
     now_month = datetime.now().month
 
+    skeleton_writer_guide = (
+        f"제공된 뼈대 블로그의 제목인 **[{skeleton_title}]**이 다루는 특정 상황, 심층 꿀팁을 이번 포스팅의 핵심 앵글로 삼아라."
+        if skeleton_title
+        else f"타겟 키워드인 **[{keyword}]**에서 여행자가 실제로 가장 많이 막히는 특정 상황과 심층 꿀팁을 이번 포스팅의 핵심 앵글로 삼아라."
+    )
+    skeleton_editor_guide = (
+        f"- 네이버 상위 노출 뼈대 제목인 **[{skeleton_title}]**의 장점만 흡수해서, 사람이 직접 쓴 것 같은 자연스러운 문장형 제목을 만드세요."
+        if skeleton_title
+        else f"- 본문의 핵심 해결책이 한눈에 드러나도록 사람이 직접 쓴 것 같은 자연스러운 문장형 제목을 만드세요."
+    )
+
     prompt_writer = f"""
 [타겟 키워드]: {keyword}
 [페르소나]: {current_persona}
@@ -366,45 +381,46 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 {recent_titles_str}
 
 [이번 글의 핵심 메인 테마 및 제목 작성 가이드]:
-제공된 뼈대 블로그의 제목인 **[{skeleton_title}]**이 다루는 특정 상황, 심층 꿀팁을 이번 포스팅의 핵심 앵글로 삼아라.
-절대 백과사전처럼 포괄적인 장단점이나 뻔한 소개를 줄줄이 나열하지 마라.
-특정 타겟(예: 가족 여행객, 뚜벅이)이나 특정 상황(예: 수수료 폭탄 방지, 환불 꿀팁, 사기 피하기) 중 딱 하나의 뾰족한 주제(Niche)에만 딥다이브(Deep-dive)해서 써라.
+{skeleton_writer_guide}
+절대 백과사전처럼 포괄적인 장단점이나 뻔한 소개를 줄줄이 나열하지 마라!
+특정 타겟(예: 가족 여행객, 뚜벅이)이나 특정 상황(예: 수수료 폭탄 방지, 환불 꿀팁, 사기 피하기) 중 딱 **하나의 뾰족한 주제(Niche)**에만 딥다이브(Deep-dive)해서 써라.
 
 [앵무새 방지 및 자연스러운 톤 지침]:
 - "결론부터 말하면", "핵심은 단 하나" 같은 고정된 문구를 매번 첫 문장에 쓰지 마세요.
-- 독자의 고민에 공감하며 자연스럽게 말을 거는 서론으로 시작하세요.
+- 독자의 고민에 공감하며 자연스럽게 말을 거는 서론으로 시작하세요. (예: "저도 이거 찾느라 고생했는데 드디어 알아냈어요", "직접 써보니 의외로 이 부분이 중요하더라고요")
 - 기계적인 인사는 빼고, 독자에게 즉시 이득이 되는 정보로 시원하게 본론을 여세요.
 
 [10개 블로그 분석 데이터]:
 {scraped_data}
 
 [미션]: 독자가 즉시 '결정'을 하도록 유도하는, 4,000자~6,000자 분량의 초고밀도 전환형 포스팅을 작성하라.
-위 10개 블로그 데이터를 베이스로 삼되, 원본에 노출된 '특정 날짜, 타인의 실명, 개인적인 에피소드'는 100% 가공하여 네 페르소나에 맞는 '새로운 나의 경험담'으로 완전히 탈바꿈시켜라. 경쟁 글의 장점은 흡수하되, 남의 글을 복사한 티가 절대 나면 안 된다. 더 디테일하고 발전된 형태의 정보를 제공하라. 또한 현재 시점({now_year}년 {now_month}월)과 계절에 맞는 정보와 날짜를 기준으로 작성하고, 2024년·2025년 등 과거 연도나 현재 계절과 맞지 않는 과거 월은 절대 표기하지 마라.
+**강력한 모방 및 진화 지시:** 위 10개 블로그 데이터를 베이스로 삼되, 원본에 노출된 '특정 날짜, 타인의 실명, 개인적인 에피소드'는 100% 가공하여 네 페르소나에 맞는 **'새로운 나의 경험담'**으로 완전히 탈바꿈시켜라. 경쟁 글의 장점은 흡수하되, 남의 글을 복사한 티가 절대 나면 안 된다. 더 디테일하고 발전된 형태의 정보를 제공하라. 또한 현재 시점({now_year}년 {now_month}월)과 계절에 맞는 최신 정보와 날짜를 기준으로 작성하고, 2024년·2025년 등 과거 연도나 현재 계절과 맞지 않는 과거 월은 절대 표기하지 마라.
 
 [핵심 강제 지시사항 - 순수 HTML만 반환 (JSON 포장 절대 금지)]:
-1. HTML 포맷 및 목차(TOC) 강제:
-  - 마크다운(`##`, `**`) 절대 금지. 오직 순수 HTML 태그만 사용.
+1. **HTML 포맷 및 목차(TOC) 강제 (매우 중요)**:
+  - 마크다운(`##`, `**`) 절대 금지! 오직 순수 HTML 태그만 사용.
   - 본문 서론 다음에는 반드시 `<nav><div class='toc-title'>목차</div><ul>...</ul></nav>` 형태의 목차를 작성하라.
   - 목차의 링크는 `<a href='#sec1'>` 형태로 앵커를 달고, 본문의 소제목 <h2> 태그에는 반드시 `<h2 id='sec1'>` 처럼 id를 일치시켜 클릭 시 정확히 이동하게 하라.
-2. 문맥형 최신 내부링크 (무조건 3개 자연 삽입 강제):
+2. **문맥형 최신 내부링크 (무조건 3개 자연 삽입 강제)**:
   - 'Related:' 같은 단독 문단 절대 금지. 문장 안에 [내 블로그 다른 글 리스트] 중 3개를 골라 자연스럽게 버튼 스타일로 녹여라.
   - 직접 <a>태그를 만들지 말고 반드시 `자세한 내용은 [내부링크_0]를 참고하세요.` 와 같이 기호로만 적어라.
-3. 중간 CTA (수익 전환 포인트): 본문 중간에 클릭을 유도하는 링크를 1개 이상 배치하라.
-4. 안전한 구글 외부 링크 (무조건 문맥에 맞는 링크 3개 강제):
-  - 가짜 오류 URL 방지를 위해, 모든 외부 링크는 반드시 구글 검색 결과 URL 또는 구글 맵 검색 URL로만 정확히 3개 작성하라.
-  - 예시: `<a href='https://www.google.com/search?q=관련+검색어' target='_blank' class='ext-link'>관련 최신정보 구글 검색하기 <span style='font-size:12px;'>(클릭하면 이동)</span></a>`
-5. 결정 섹션: 본문 맨 마지막에 `<h2 id='conclusion'>상황별 최종 선택 가이드</h2>` 형태로 주제에 맞는 결론 소제목을 사용해라.
-6. 표(Table)와 리스트(List) 절대 엄수:
-  - 제품 비교나 장단점 설명 시 반드시 `<div class='table-wrapper'><table>...</table></div>` 형태의 HTML 표로 작성하라.
+3. **중간 CTA (수익 전환 포인트)**: 본문 중간에 클릭을 유도하는 링크를 1개 이상 배치하라. 그리고 무조건 유효한 링크주소로 할 것 (예: 👉 지금 가장 많이 쓰는 요금제 확인하기)
+4. **무조건 접속되는 오류 없이 안전한 구글 외부 링크 (무조건 문맥에 맞는 링크 3개 강제)**:
+  - 가짜 오류 URL 방지를 위해, 모든 외부 링크는 **반드시 구글 검색 결과 URL** 또는 **구글 맵 검색 URL**로만 정확히 3개 작성하라.
+  - 예시: `<a href='https://www.google.com/search?q=관련+검색어' target='_blank' class='ext-link'>관련 최신정보 구글 검색하기 <span style='font-size:12px;'>(👉클릭하면 이동)</span></a>`
+5. **결정 버튼**: 본문 맨 마지막에 `<h2 id='conclusion'>결론: 그래서 뭐 쓰라고? 또는 주제에 맞게 다른 말투로 쓸것 (상황별 추천)</h2>` 태그를 사용해라.
+6. **표(Table)와 리스트(List) 절대 엄수 (비교 시 무조건 표 사용)**:
+  - 제품 비교나 장단점 설명 시 절대 줄글로 쓰지 말고, 반드시 `<div class='table-wrapper'><table>...</table></div>` 형태의 완벽한 HTML 표로 작성하라.
   - 텍스트 나열은 `<p>` 대신 `<ul><li>...</li></ul>`를 적극 활용해라.
-7. 본문 안의 모든 HTML 속성은 반드시 작은따옴표(')만 써라.
-8. 글 맨 끝에 부연 설명("네 알겠습니다", "작성 완료" 등)을 단 한 글자도 적지 마라. 오직 HTML 소스코드만 출력하라.
+7. **JSON 에러 파괴 방지**: 본문 안의 모든 HTML 속성은 반드시 **작은따옴표(')**만 써라! (예: `class='ext-link'`)
+8. **최고 중요 경고**: 글 맨 끝에 네 대답이나 부연 설명("네 알겠습니다", "작성 완료" 등)을 단 한 글자도 적지 마라! 오직 HTML 소스코드만 출력하라!
 
-[품질 필터 및 휴먼 톤 작성 지침]:
+[품질 필터 및 휴먼 톤(Human Tone) 작성 지침]:
 - 기계식 서론 금지: 검색 과정 등 군더더기 금지. 곧바로 핵심 혜택 시작.
-- 리얼리티 경험담: 자연스러운 구어체(~했어요, 솔직히 말해서 등) 사용.
+- 리얼리티 경험담: 친한 회원에게 썰 푸는 말투(~했어요, 솔직히 말해서 등) 사용.
+- 완벽한 정보 금지: 일부는 경험처럼 풀고, 반말 느낌이나 감탄문 1~2개 허용.
 - 이유+결과 공식: 모든 문장은 "이유+결과"를 적어라.
-- 문장 길이 섞기, 반복 패턴 깨기, 개인정보 및 모방 사이트 이름 금지.
+- 문장 길이 섞기, 말투 살짝 흔들기, 반복 패턴 깨기, 이름이나 너무 개인정보는 밝히지 말것, 모방 사이트 이름 금지.
 """
 
     print("[4/6] 1단계: 메인 작가 AI가 본문을 창작 중입니다...")
@@ -431,25 +447,26 @@ def generate_master_content(keyword, target_blog_url, scraped_data, title_guide,
 [초안 블로그 본문]:
 {draft_html[:3000]} ... (중략)
 
-[최종 제목(title) 생성 규칙]:
-- 현재 시점은 {now_year}년 {now_month}월이다. 제목과 본문에 2024년, 2025년 등 과거 연도나 현재 계절과 맞지 않는 과거 월(예: 11월에 4월/5월)을 절대 표기하지 마라.
-- "2026년 최신판!", "확인해 보세요" 같은 인위적 수식어와 "J형 여행가", "프로 봇짐러" 같은 반복 페르소나 문구를 제목에 넣지 마라.
-- '{keyword}'를 포함하여 핵심 해결책이 드러나는 자연스럽고 담백한 정보형 제목을 작성하라.
+**[최종 제목(title) 생성 특명 - 100% 자연스러운 한국어 문장]**:
+- 현재 시점은 {now_year}년 {now_month}월이다. 제목과 본문에 2024년, 2025년 등 과거 연도나 현재 계절과 맞지 않는 과거 월(예: 11월에 4월/5월)을 절대 표기하지 마세요.
+- "2026년 최신판!", "확인해 보세요" 같은 인위적인 수식어 조합과 "J형 여행가", "프로 봇짐러" 같은 반복 페르소나 문구를 제목에 넣지 마세요.
+{skeleton_editor_guide}
+- '{keyword}'는 반드시 포함하되, 이웃에게 꿀팁을 전수하는 듯한 솔직하고 담백한 제목이 가장 좋습니다.
 
-[초정밀 능동형 지도(map_location) 하네스 규칙]:
-본문을 읽고 독자가 가장 길을 찾고 싶어 할 실물 장소를 능동적으로 추론하여 단답형으로 지정하라.
+**[초정밀 능동형 지도(map_location) 하네스 규칙]**:
+본문을 읽고 독자가 가장 길을 찾고 싶어 할 실물 장소를 '능동적으로 추론'하여 단답형으로 지정하라.
 1. 해외 현지 (맛집/관광): "간사이 국제공항", "다낭 한시장", "신주쿠역" 등 해당 지역의 핵심 랜드마크.
 2. 국내 출국 (편의시설): "인천공항 마티나 라운지", "신라면세점 서울점", "서울역 도심공항터미널" 등 구체적인 시설명.
-3. 온라인/무형 (환전/보험/통신/비자): "명동 환전소", "인천공항 제1여객터미널", "인천공항 로밍센터", "외교부 여권민원실" 등 대표 오프라인 장소.
+3. 온라인/무형 (환전/보험/통신/비자): "명동 환전소", "인천공항 제1여객터미널", "인천공항 로밍센터", "외교부 여권민원실" 등 서비스와 직결되는 대표 오프라인 장소.
 - 스쳐 지나가는 화장실, 수영장, 단순 도로명 등은 절대 금지.
 
 [출력 형식 가이드]: 순수 JSON 문자열만 반환하라.
 JSON Keys:
-- title: 검색 의도에 맞춘 자연스러운 정보형 제목 (과거 연도 및 과도한 어그로 금지)
+- title: 검색 의도에 맞춘 자연스럽고 클릭하고 싶은 정보형 제목 (과거 연도 및 기계적 어그로 금지)
 - meta_desc: 150자 요약
 - meta_keys: '{keyword}'가 포함된 쉼표 구분 키워드
 - slug: 영문 짧은 주소
-- summary: ["핵심요약", "비용절약", "필수체크"] (6글자 이하 3개)
+- summary: ["✈️ 짧은단어", "💰 짧은단어", "✅ 짧은단어"] (6글자 이하 3개)
 - map_location: 능동적 추론 장소명 1개
 - category: ["여행 교통 팁", "여행 쇼핑 팁", "여행 관광 팁", "여행 준비 팁", "여행 맛집 팁", "생활 정보 꿀팁"] 중 1개
 """
@@ -468,13 +485,17 @@ JSON Keys:
                 timeout=180
             )
             res.raise_for_status()
-            final_data = json.loads(
+            parsed = json.loads(
                 res.json()['candidates'][0]['content']['parts'][0]['text']
                 .replace("```json", "")
                 .replace("```", "")
                 .strip()
             )
-            break
+            if isinstance(parsed, list) and parsed:
+                parsed = parsed[0]
+            if isinstance(parsed, dict) and parsed.get('title'):
+                final_data = parsed
+                break
         except Exception:
             time.sleep(5)
 
@@ -482,7 +503,7 @@ JSON Keys:
         return None
 
     for i, p in enumerate(menu_posts):
-        link_html = f" <a href='{p['url']}' target='_blank' class='int-link'>{p['title']} (새창)</a> "
+        link_html = f" <a href='{p['url']}' target='_blank' class='int-link'>🔗 {p['title']} (새창)</a> "
         draft_html = draft_html.replace(f"[내부링크_{i}]", link_html)
 
     final_data['content'] = draft_html
@@ -528,7 +549,7 @@ def run_automation():
             f.write("\n" + keyword)
         return
 
-    location = data.get('map_location', '인천공항 제1여객터미널').strip()
+    location = (data.get('map_location') or '인천공항 제1여객터미널').strip() or '인천공항 제1여객터미널'
     map_html = create_map_embed(location)
     print(f"[System] AI가 분석한 '{location}' 기반 구글맵 코드를 생성했습니다.")
 
@@ -540,7 +561,7 @@ def run_automation():
     """
 
     alt_text = generate_alt_text(keyword, "핵심 요약")
-    card_tag = create_summary_card_tag(data.get('summary', ["핵심정리", "비용절약", "시간단축"]), alt_text)
+    card_tag = create_summary_card_tag(data.get('summary', ["📌 핵심정리", "💰 비용절약", "✅ 시간단축"]), alt_text)
 
     content = data['content']
 
@@ -632,10 +653,13 @@ def run_automation():
     print(f"[System] {sleep_time}초 대기 후 발행합니다...")
     time.sleep(sleep_time)
 
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
     service = build('blogger', 'v3', credentials=creds)
 
     try:
-        slug_text = data.get('slug', 'auto-post')
+        slug_text = (data.get('slug') or 'auto-post').strip()
+        post_title = (data.get('title') or f"{keyword} 정리").strip()
         print(f"[6/6] 최종 업로드 중... ({slug_text})")
         temp_post = service.posts().insert(
             blogId=BLOG_ID,
@@ -645,9 +669,9 @@ def run_automation():
         service.posts().patch(
             blogId=BLOG_ID,
             postId=temp_post['id'],
-            body={"title": data['title'], "content": final_html, "customMetaData": data.get('meta_desc', '')}
+            body={"title": post_title, "content": final_html, "customMetaData": data.get('meta_desc', '')}
         ).execute()
-        print(f"[완료] {data['title']}")
+        print(f"[완료] {post_title}")
     except Exception as e:
         print(f"실패: {e}")
         with open(QUEUE_FILE, "a", encoding="utf-8") as f:
